@@ -1,0 +1,457 @@
+HITRON-CABLE-MODEM-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+        MODULE-IDENTITY,
+        OBJECT-TYPE,
+        IpAddress,
+        Unsigned32,
+        Integer32,
+        enterprises
+                FROM SNMPv2-SMI
+		DisplayString,
+        RowStatus,
+        TruthValue
+                FROM SNMPv2-TC
+        OBJECT-GROUP,
+        MODULE-COMPLIANCE
+                FROM SNMPv2-CONF
+        hitronMib
+                FROM HITRON-MIB;
+
+-- hitron Cable Modem Reference Design Module
+
+hitronDOCSIS MODULE-IDENTITY
+        LAST-UPDATED    "201801301600Z"		-- Jan 30, 2018
+        ORGANIZATION    "Hitron Technologies, Inc."
+        CONTACT-INFO
+            " Postal: Hitron Technologies, Inc.
+                     No. 1-8, Lihsin 1st Rd., Hsinchu Science Park,
+                     Hsinchu, Taiwan, R.O.C.
+             Phone: +886 3 578 6658"
+        DESCRIPTION
+            "This is the MIB module for Hitron DOCSIS compliant
+             Cable Modem."
+
+        REVISION      "201702170100Z" --  Feb 17, 2017
+        DESCRIPTION
+            "Additional MIB for Hitron features and customization."
+
+		REVISION	"201704191714Z"		-- April 19, 2017
+		DESCRIPTION
+			"Add mib hitronAqmMode for AQM mode control."
+		
+		REVISION	"201704261714Z"		-- April 26, 2017
+		DESCRIPTION
+			"Add mib hitronAqmLatency for AQM latency control."
+		REVISION	"201711061100Z"		-- Nov 06, 2017
+		DESCRIPTION
+			"Add OID hitronDiplexerControl."
+		REVISION	"201711101300Z"		-- Nov 10, 2017
+		DESCRIPTION
+			"Adjust syntax definition for OID hitronDiplexerControl."
+
+		REVISION	"201711081600Z"		-- November 15, 2017
+		DESCRIPTION
+			"Add mib hitronCMPODSeed for Seed Setting"
+
+		REVISION	"201801301600Z"		-- Jan 30, 2018
+		DESCRIPTION
+			"Add mib hitronTr069Parametersfor TR069 setting"
+        ::= { hitronMib 2 }
+
+   SnmpAdminString ::= TEXTUAL-CONVENTION
+       DISPLAY-HINT "255a"
+       STATUS       current
+       DESCRIPTION "An octet string containing administrative
+                    information, preferably in human-readable form.
+
+                    To facilitate internationalization, this
+                    information is represented using the ISO/IEC
+                    IS 10646-1 character set, encoded as an octet
+                    string using the UTF-8 transformation format
+                    described in [RFC2044].
+
+                    Since additional code points are added by
+                    amendments to the 10646 standard from time
+                    to time, implementations must be prepared to
+                    encounter any code point from 0x00000000 to
+                    0x7fffffff.
+
+                    The use of control codes should be avoided.
+
+                    When it is necessary to represent a newline,
+                    the control code sequence CR LF should be used.
+
+                    The use of leading or trailing white space should
+                    be avoided.
+
+                    For code points not directly supported by user
+                    interface hardware or software, an alternative
+                    means of entry and display, such as hexadecimal,
+                    may be provided.
+
+                    For information encoded in 7-bit US-ASCII,
+                    the UTF-8 encoding is identical to the
+                    US-ASCII encoding.
+
+                    Note that when this TC is used for an object that
+                    is used or envisioned to be used as an index, then
+                    a SIZE restriction must be specified so that the
+                    number of sub-identifiers for any object instance
+                    does not exceed the limit of 128, as defined by
+                    [RFC1905].
+                   "
+       SYNTAX       OCTET STRING (SIZE (0..255))
+
+hitronCm OBJECT IDENTIFIER ::= { hitronDOCSIS 1 }
+
+hitronCmManagementParameters OBJECT IDENTIFIER ::= { hitronCm 2 }
+
+hitronCmRemoteManagementTable OBJECT-TYPE
+        SYNTAX      SEQUENCE OF HitronCmRemoteManagementEntry
+        MAX-ACCESS  not-accessible
+        STATUS      current
+        DESCRIPTION
+            "This table allows control of accessing the CM remote management services, like TELNET, HTTP, SNMP, HTTPS and SSH."
+        ::= { hitronCmManagementParameters 2 }
+
+hitronResetFactory OBJECT-TYPE
+	SYNTAX     TruthValue
+	MAX-ACCESS read-write
+	STATUS     current
+	DESCRIPTION
+	    "Reset the unit to factory default. this will also wipe any
+            learned golden frequencies and reset the unit to the state as
+            from factory."
+      ::= { hitronCmManagementParameters 3 }
+
+hitronCmUserPasswordTable OBJECT-TYPE
+	SYNTAX      SEQUENCE OF HitronCmUserPasswordEntry
+	MAX-ACCESS  not-accessible
+	STATUS      current
+	DESCRIPTION
+		"This table allows configuration of change user password"
+	::= { hitronCmManagementParameters 10 }
+
+hitronCmUserPasswordEntry  OBJECT-TYPE
+	SYNTAX      HitronCmUserPasswordEntry
+	MAX-ACCESS  not-accessible
+	STATUS          current
+	DESCRIPTION
+		"Allow configuration for change user password by role."
+	INDEX { hitronCmUserRole }
+	::= { hitronCmUserPasswordTable 1 }
+
+HitronCmUserPasswordEntry ::= SEQUENCE {
+            hitronCmUserRole       INTEGER,
+            hitronCmPassword       SnmpAdminString,
+            hitronCmUsername       SnmpAdminString
+        }
+
+hitronCmUserRole OBJECT-TYPE
+	SYNTAX INTEGER {
+            admin(1),
+            msoadmin(2)
+	}
+	MAX-ACCESS  not-accessible
+	STATUS      current
+	DESCRIPTION
+		"Select User Role"
+	::= { hitronCmUserPasswordEntry 1 }
+
+hitronCmPassword OBJECT-TYPE
+	SYNTAX     SnmpAdminString
+	MAX-ACCESS  read-write
+	STATUS      current
+	DESCRIPTION
+		"Set password for the selected user in hitronCmUserRole.
+		For dump CM/eMTA products, only admin user is supported. So, for other user role, the password
+		setting would have no effect."
+
+	::= { hitronCmUserPasswordEntry 2 }
+
+hitronCmUsername OBJECT-TYPE
+	SYNTAX     SnmpAdminString
+	MAX-ACCESS  read-write
+	STATUS      current
+	DESCRIPTION
+		"Set username for the selected user in hitronCmUserRole.
+		For dump CM/eMTA products, only admin user is supported. So, for other user role, the username
+		setting would have no effect."
+
+	::= { hitronCmUserPasswordEntry 3 }
+
+hitronConsoleEnable OBJECT-TYPE
+	SYNTAX     TruthValue
+	MAX-ACCESS read-write
+	STATUS     current
+	DESCRIPTION
+	    "When this OID is set to true, the console is active and can be used"
+             
+	DEFVAL {false}
+      ::= { hitronCmManagementParameters 15 }
+
+hitronBondingStatus OBJECT-TYPE
+        SYNTAX BITS {
+            d2(0), 
+            d3Full(1), 
+            d3Fallback(2),
+            oneDS(3), 
+            twoDS(4), 
+            threeDS(5),
+            fourDS(6), 
+            fiveDS(7), 
+            sixDS(8),
+            sevenDS(9), 
+            eightDS(10), 
+            nineDS(11), 
+            tenDS(12), 
+            elevenDS(13),
+            twelveDS(14), 
+            thirteenDS(15), 
+            fourteenDS(16),
+            fifteenDS(17), 
+            sixteenDS(18),
+            seventeenDS(19), 
+            eighteenDS(20), 
+            nineteenDS(21),
+            twentyDS(22), 
+            twentyoneDS(23),            
+            twentytwoDS(24), 
+            twentythreeDS(25),       
+            twentyfourDS(26),           
+            twentyfiveDS(27), 
+            twentysixDS(28), 
+            twentysevenDS(29), 
+            twentyeightDS(30),
+            twentynineDS(31), 
+            thirtyDS(32),            
+            thirtyoneDS(33), 
+            thirtytwoDS(34),       
+            oneUS(35),
+            twoUS(36), 
+            threeUS(37), 
+            fourUS(38),       
+            fiveUS(39),
+            sixUS(40), 
+            sevenUS(41), 
+            eightUS(42),
+            d31(43),
+            oneOFDM(44),
+            twoOFDM(45), 
+            oneOFDMA(46), 
+            twoOFDMA(47)            
+        }
+	MAX-ACCESS	read-only
+	STATUS		current
+	DESCRIPTION
+	    "Display the CM DOCSIS opearation mode and Downstream and Upstream bonding status. 64 bit mask is used to identify status. For example, 
+             if CM is 24x8 Full D3, its value is 0x4000002000200000. The bit 43~47 is for D31 OFDM&OFDMA display. The bit 48~63 is not used at this moment.             
+             If CM is 8x4 or 4x4, it's recommended to use old MIB hitronDocsisMode."
+             
+        ::= { hitronCmManagementParameters 23 }
+
+hitronCmD31mode OBJECT-TYPE
+        SYNTAX      INTEGER
+        {
+            enable(1),
+            disable(0)
+        }
+        MAX-ACCESS  read-write
+        STATUS      current
+        DESCRIPTION
+          "This object is used to turn on/off DOCSIS 3.1 mode. 
+		   If there are D3.1 channels in testing in the field,but the customer DO NOT want the modem to lock on it,this MIB is needed.
+		   1: enable D31 mode 0: disable D31 mode"
+        DEFVAL {1}
+        ::= { hitronCmManagementParameters 33 }
+
+hitronAqmMode OBJECT-TYPE
+		SYNTAX	INTEGER
+		{
+			enable(1),
+			disable(2),
+			followcfg(3)
+		}
+		MAX-ACCESS  read-write
+		STATUS		current
+		DESCRIPTION
+			"This object is used to set AQM mode
+			 1: enable AQM  2: disable AQM  3: follow AQM tlv value in cfg file"
+		DEFVAL {3}
+		::= { hitronCmManagementParameters 37 }
+
+hitronAqmLatency OBJECT-TYPE
+		SYNTAX	INTEGER(0..255)
+		MAX-ACCESS  read-write
+		STATUS		current
+		DESCRIPTION
+			"This object is used to set AQM latency (millisecond)
+			 When this object is set to 0, the latency value in config file will be used.
+			 For other values, modem would force to use the setting."
+		DEFVAL {0}
+		::= { hitronCmManagementParameters 38 }
+
+hitronDiplexerControl OBJECT-TYPE
+		SYNTAX     INTEGER
+		{
+			band0(0),
+			band1(1)
+		}
+		MAX-ACCESS read-write
+		STATUS     current
+		DESCRIPTION
+			"This OID is used to control diplexer to switch DS and US band."
+		DEFVAL {0}
+		::= { hitronCmManagementParameters 40 }
+
+hitronCMPODSeed OBJECT-TYPE
+		SYNTAX	DisplayString
+		MAX-ACCESS  read-write
+		STATUS		current
+		DESCRIPTION
+			"This value is used as a seed to generate the POD 
+			 string."
+		::= { hitronCmManagementParameters 41 }
+
+hitronCmRemoteManagementEntry  OBJECT-TYPE
+        SYNTAX      HitronCmRemoteManagementEntry
+        MAX-ACCESS  not-accessible
+	   STATUS		current
+	   DESCRIPTION
+        "Allow configuration for accessing control of different CM remote management services from different interfaces."
+        INDEX { hitronCmRemoteManageCapability }
+        ::= { hitronCmRemoteManagementTable 1 }
+
+HitronCmRemoteManagementEntry ::= SEQUENCE {
+            hitronCmRemoteManageCapability       INTEGER,
+            hitronCmRemoteManageAccessible       BITS
+        }
+
+hitronCmRemoteManageCapability OBJECT-TYPE
+        SYNTAX INTEGER {
+            telnet(1),
+            http(2),
+            snmp(3),
+            https(4),
+            ssh(5)
+        }
+        MAX-ACCESS  not-accessible
+        STATUS      current
+        DESCRIPTION
+            "The remote management service list that is controlled by this entry. SNMP is only
+             supported on 3.0 products."
+        ::= { hitronCmRemoteManagementEntry 1 }
+
+hitronCmRemoteManageAccessible OBJECT-TYPE
+        SYNTAX BITS {
+            cpeAccessOnlineEnabled(0),
+            cpeAccessOfflineEnabled(1),
+            rfiAccessEnabled(2)
+        }
+        MAX-ACCESS  read-write
+        STATUS      current
+        DESCRIPTION
+            "When flag(s) is enabled ((CPE/rfi)AccessEnabled = 1) indicates that access through specific interface(s) is enable.
+             If disabled(=0), indicates that any remote management access through the specific interface is rejected.
+             For Telnet, SNMP, HTTP and HTTPS default is any interface has access at any time,['E0'h].
+             For SSH, default  is rfi has the access when the device is on line,['20'h]."
+        ::= { hitronCmRemoteManagementEntry 2 }
+
+hitronCmImageParameters OBJECT IDENTIFIER ::= { hitronCm 3}
+
+hitronCmActiveImage OBJECT-TYPE
+        SYNTAX      INTEGER
+        MAX-ACCESS  read-only
+	      STATUS		current
+	      DESCRIPTION
+            "This object display the current active image segamenet."
+        ::= { hitronCmImageParameters 2 }
+
+hitronCmImageTable OBJECT-TYPE
+        SYNTAX     SEQUENCE OF HitronCmImageEntry
+        MAX-ACCESS not-accessible
+        STATUS     current
+        DESCRIPTION
+            "A list of images version and filename in flash."
+        ::= { hitronCmImageParameters 3 }
+
+hitronCmImageEntry OBJECT-TYPE
+        SYNTAX     HitronCmImageEntry
+        MAX-ACCESS not-accessible
+        STATUS     current
+        DESCRIPTION
+            "list entry for each image segament in flash."
+        INDEX   { hitronCmImageIndex }
+            ::= { hitronCmImageTable 1 }
+
+HitronCmImageEntry ::=
+        SEQUENCE {
+                hitronCmImageIndex
+                        Integer32,
+                hitronCmImageVersion
+                        SnmpAdminString,
+                hitronCmImageNmae
+                        SnmpAdminString
+        }
+
+hitronCmImageIndex OBJECT-TYPE
+        SYNTAX     Integer32 (1..2147483647)
+        MAX-ACCESS not-accessible
+        STATUS     current
+        DESCRIPTION
+            "The image segament number."
+        ::= { hitronCmImageEntry 1 }
+
+hitronCmImageVersion OBJECT-TYPE
+        SYNTAX     SnmpAdminString
+        MAX-ACCESS read-only
+        STATUS     current
+        DESCRIPTION
+            "The software version in the indexed segament in the flash."
+        ::= { hitronCmImageEntry 2 }
+
+hitronCmImageNmae OBJECT-TYPE
+        SYNTAX     SnmpAdminString
+        MAX-ACCESS read-only
+        STATUS     current
+        DESCRIPTION
+            "The image filename in the indexed segament in the flash."
+        ::= { hitronCmImageEntry 3 }
+
+    -- TR-069(CWMP) for non-RG product
+hitronTr069Parameters OBJECT IDENTIFIER   ::= { hitronCm 7 }
+
+hitronTr069Enable OBJECT-TYPE
+        SYNTAX      TruthValue
+        MAX-ACCESS  read-write
+        STATUS      current
+        DESCRIPTION
+            "Enable/Disable TR-069(CWMP) Server."
+        ::= { hitronTr069Parameters 1 }
+
+hitronTr069AcsUrl OBJECT-TYPE
+        SYNTAX      DisplayString
+        MAX-ACCESS  read-write
+        STATUS      current
+        DESCRIPTION
+            "The URL of Auto Configuration Servers (ACS)."
+        ::= { hitronTr069Parameters 2 }
+
+hitronTr069AcsUser OBJECT-TYPE
+        SYNTAX      DisplayString
+        MAX-ACCESS  read-write
+        STATUS      current
+        DESCRIPTION
+            "The UserName of Auto Configuration Servers (ACS)."
+        ::= { hitronTr069Parameters 3 }
+
+hitronTr069AcsPassWord OBJECT-TYPE
+        SYNTAX      DisplayString
+        MAX-ACCESS  read-write
+        STATUS      current
+        DESCRIPTION
+            "The Password of Auto Configuration Servers (ACS)."
+        ::= { hitronTr069Parameters 4 }
+
+END
