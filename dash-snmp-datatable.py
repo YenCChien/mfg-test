@@ -11,31 +11,49 @@ import pandas as pd
 
 CMTS = '192.168.45.254'
 
-def parse_contents(data):
+def parse_contents(data,order=None):
+    if not order:
+        order = data.columns
     return html.Div([
-        html.H5('file name'),
+        html.H5('Downstream'),
         html.H6(datetime.datetime.fromtimestamp(time.time())),
-        dt.DataTable(rows=data.to_dict('records'),editable=False),
+        dt.DataTable(
+            rows=data.to_dict('records'),
+            editable=False, 
+            sortable=True,
+            resizable=False,
+            columns=(order)
+            ),
         html.Hr()
     ])
 
-def query_snmp(wan, items):
-    dic = {}
+def query_ds_snmp(wan, dsdicidx, items):
+    chidx = [dsdicidx[k] for k in sorted(dsdicidx)]
+    dic = {'docsIfDownChannelId' : sorted(dsdicidx),'docsIfDownChannelIdx' : chidx}
     for oid_name in items:
+        value_list = []
         data = Snmp.SnmpWalk(wan,snmp_oid(oid_name))
-        oid_list,index_list,value_list,name_list = [],[],[],[]
-        for ch in data:
-            oid = ch.split(' ')[0]
-            index = ch.split(' ')[0].split('.')[-1]
-            value = ch.split(' ')[-1]
-            name = oid_name+'.{}'.format(index)
-            # dic.update({oid_name+'.{}'.format(index):[oid,index,value]})
-            oid_list.append(oid); index_list.append(index), value_list.append(value), name_list.append(name)
+        for idx in sorted(dsdicidx):
+            for v in data:
+                snmp_idx = v.split(' ')[0].split('.')[-1]
+                snmp_value = v.split(' ')[-1]
+                if dsdicidx[idx] == snmp_idx:
+                    value_list.append(snmp_value)
+                    break
         dic.update({
-            "*CHANNEL" : list(range(len(index_list))),
-            "*INDEX" : index_list,
             oid_name : value_list
         })
+    return dic
+
+def getDsId(wan):
+    data = Snmp.SnmpWalk(wan,snmp_oid('docsIfDownChannelId'))
+    dic = {}
+    for ch in data:
+        index = ch.split(' ')[0].split('.')[-1]
+        value = ch.split(' ')[-1]
+        if int(value) > 32:continue
+        print(index, value)
+        dic[value] = index
     return dic
 
 app = dash.Dash()
@@ -63,22 +81,24 @@ df = pd.DataFrame(dict)
     Output(component_id='output-data-upload', component_property='children'),
     [Input(component_id='my-id', component_property='value')]
 )
+
 def update_output_div(input_value):
     if len(input_value) == 12:
         try:
             wan = SnmpGetWanIp(CMTS,input_value)
         except:
-            return 'Get IP Error!!'
+            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
         sysinfo = html.Div(style={'color': '#5031c6'}, children=(modemsys))
         waninfo = html.Div(style={'color': '#5031c6'}, children=('WAN : ' + wan))
-        groups = ["Name","OID",'Index','Value']
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower']
-        freq = pd.DataFrame(query_snmp(wan,queritems))
-        print(freq)
+        dsIdDic = getDsId(wan)
+        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
+        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
+        DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
+        print(DsInfo)
         if 'No SNMP response' in modemsys:
             return waninfo, sysinfo
-        return waninfo, sysinfo, parse_contents(freq), parse_contents(df)
+        return waninfo, sysinfo, parse_contents(DsInfo,DsOrder), parse_contents(df)
     elif len(input_value) == 0:
         return html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
     else:
