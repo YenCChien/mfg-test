@@ -31,7 +31,7 @@ def text_style(valued, col):
     if col == 'docsIf3SignalQualityExtRxMER':
         style = {}
         value = float(valued)
-        if value >= 400:
+        if value >= 40:
             style = {
                 'color': '#008000'
             }
@@ -67,7 +67,9 @@ def generate_table(dataframe, order, max_rows=10):
         [html.Tr([
             html.Td(dataframe.iloc[i][col], style=text_style(dataframe.iloc[i][col],col)) for col in order
         ]) for i in range(min(len(dataframe), max_rows))]
-    )])
+        ),
+        html.Hr()
+        ])
 
 def query_ds_snmp(wan, dsdicidx, items):
     chidx = [dsdicidx[k] for k in sorted(dsdicidx)]
@@ -80,6 +82,8 @@ def query_ds_snmp(wan, dsdicidx, items):
                 snmp_idx = v.split(' ')[0].split('.')[-1]
                 snmp_value = v.split(' ')[-1]
                 if dsdicidx[idx] == snmp_idx:
+                    if oid_name == 'docsIfDownChannelPower' or oid_name == 'docsIf3SignalQualityExtRxMER':
+                        snmp_value = float(snmp_value)/10.0
                     value_list.append(snmp_value)
                     break
         dic.update({
@@ -101,9 +105,11 @@ def getDsId(wan):
 app = dash.Dash()
 
 app.layout = html.Div([
-    dcc.Input(id='my-id', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-upload'),
-    html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
+    dcc.Input(id='id-1', placeholder='Enter a Mac...', value='', type='text'),
+    html.Div(id='output-data-1'),
+    dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
+    html.Div(id='output-data-2'),
+    # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ])
 
 groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]  
@@ -120,8 +126,8 @@ df = pd.DataFrame(dict)
 #     'usa-agricultural-exports-2011.csv')
 
 @app.callback(
-    Output(component_id='output-data-upload', component_property='children'),
-    [Input(component_id='my-id', component_property='value')]
+    Output(component_id='output-data-1', component_property='children'),
+    [Input(component_id='id-1', component_property='value')]
 )
 
 def update_output_div(input_value):
@@ -133,7 +139,40 @@ def update_output_div(input_value):
         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
         sysinfo = html.Div(style={'color': '#5031c6'}, children=(modemsys))
         waninfo = html.Div(style={'color': '#5031c6'}, children=('WAN : ' + wan))
-        dsIdDic = getDsId(wan)
+        try:
+            dsIdDic = getDsId(wan)
+        except Exception as err:
+            return html.Div(style={'color': '#f70404'}, children=(err))
+        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
+        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
+        DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
+        print(DsInfo)
+        if 'No SNMP response' in modemsys:
+            return waninfo, sysinfo
+        return waninfo, sysinfo, generate_table(DsInfo, DsOrder)
+    elif len(input_value) == 0:
+        return html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
+    else:
+        return html.Div(style={'color': '#f70404'}, children=('Mac Error'))
+
+@app.callback(
+    Output(component_id='output-data-2', component_property='children'),
+    [Input(component_id='id-2', component_property='value')]
+)
+
+def update_output_div(input_value):
+    if len(input_value) == 12:
+        try:
+            wan = SnmpGetWanIp(CMTS,input_value)
+        except:
+            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
+        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
+        sysinfo = html.Div(style={'color': '#5031c6'}, children=(modemsys))
+        waninfo = html.Div(style={'color': '#5031c6'}, children=('WAN : ' + wan))
+        try:
+            dsIdDic = getDsId(wan)
+        except Exception as err:
+            return html.Div(style={'color': '#f70404'}, children=(err))
         queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
         DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
         DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
@@ -148,7 +187,7 @@ def update_output_div(input_value):
 
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
-app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/brPBPO.css"})
+# app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/brPBPO.css"})
 
 if __name__ == '__main__':
     app.run_server(debug=True,host='0.0.0.0')
