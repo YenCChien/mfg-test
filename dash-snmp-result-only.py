@@ -9,68 +9,34 @@ import Snmp
 from snmplib import *
 import pandas as pd
 
+
+### Baisc Setting ###
 CMTS = '192.168.45.254'
+items = {
+        'DsQAM':    ['docsIfDownChannelPower'],
+        'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
+        # 'OFDM':     ['docsIf31CmDsOfdmChannelPowerRxPower','docsPnmCmDsOfdmRxMerMean'],
+        # 'UsQAM':    ['docsIf3CmStatusUsTxPower'],
+        # 'UsSNR':    ['docsIf3CmtsCmUsStatusSignalNoise'],
+        # 'OFDMA':    ['docsIf31CmtsCmUsOfdmaChannelMeanRxMer','docsIf31CmUsOfdmaChanTxPower']
+        }
+RxMER = 40
+UsSNR = 40
+DsPower = {1:-1.2,2:-9,3:-5,4:-5,5:-1,6:-1.7,7:-1.5,8:-1.7}
+UsPower = {1:30,2:30,3:30,4:30}
+#####################
 
-
-def parse_contents(data,order=None):
-    if not order:
-        order = data.columns
-    return html.Div([
-        html.H5('Downstream'),
-        html.H6(datetime.datetime.fromtimestamp(time.time())),
-        dt.DataTable(
-            rows=data.to_dict('records'),
-            editable=False, 
-            sortable=True,
-            resizable=False,
-            columns=(order)
-            ),
-        html.Hr()
-    ])
-
-def text_style(valued, col):
-    if col == 'docsIf3SignalQualityExtRxMER':
-        style = {}
-        value = float(valued)
-        if value >= 40:
-            style = {
-                'color': '#008000'
-            }
-        else:
-            style = {
-                'color': '#f41111'
-            }
-    elif col == 'docsIfDownChannelPower':
-        style = {}
-        value = float(valued)
-        if abs(value-0) < 2:
-            style = {
-                'color': '#008000'
-            }
-        else:
-            style = {
-                'color': '#f41111'
-            }
-    else: 
-        style = {'color': '#000000'}
-    style.update({'background': '#d8e8a9'})
+def text_style(result):
+    if result == 'PASS':
+        style = {
+            'color': '#008000'
+        }
+    else:
+        style = {
+            'color': '#f41111'
+        }
+    # style.update({'background': '#d8e8a9'})
     return style
-
-def generate_table(dataframe, order, max_rows=10):
-    return html.Div([
-        html.H5('Downstream'),
-        html.H6(datetime.datetime.fromtimestamp(time.time())),
-        html.Table(
-        # Header
-        [html.Tr([html.Th(col) for col in order])] +
-
-        # Body
-        [html.Tr([
-            html.Td(dataframe.iloc[i][col], style=text_style(dataframe.iloc[i][col],col)) for col in order
-        ]) for i in range(min(len(dataframe), max_rows))]
-        ),
-        html.Hr()
-        ])
 
 def generate_result(dataframe, order, max_rows=10):
     if dataframe.empty:
@@ -78,43 +44,40 @@ def generate_result(dataframe, order, max_rows=10):
         html.Table(
         # Header
         [html.Tr([html.Th(col) for col in order])] 
-
         # Body
         # [html.Tr([
         #     html.Td('PASS') for col in order
         # ])]
         ),
-        html.H4('N/A',style={'color': '#000000'}),
+        html.H3('N/A',style={'color': '#000000'}),
         html.Br()
         ])
+    ## create dic of test status for all test items
     retult_dic = {}
     for c in order:
         retult_dic[c] = 'N/A'
         if c == 'docsIf3SignalQualityExtRxMER': retult_dic[c] = 'PASS'
         if c == 'docsIfDownChannelPower': retult_dic[c] = 'PASS'
-
-    x = [[dataframe.iloc[i][col] for col in order] for i in range(len(dataframe))]
-    # for i in range(len(dataframe)):
-    #     print(i)
-    #     for col in order:
-    #         print(dataframe[i][col])
-    #         if col == 'docsIf3SignalQualityExtRxMER':
-    #             if dataframe[i][col] < 40: retult_dic[col] = 'FAIL'
-    #         elif col == 'docsIfDownChannelPower':
-    #             if abs(dataframe[i][col]-0) > 2: retult_dic[col] = 'FAIL'
-    #         else: continue
-
+    for i in range(len(dataframe)):
+        print(i)
+        for col in order:
+            print(dataframe.iloc[i][col])
+            if col == 'docsIf3SignalQualityExtRxMER':
+                if dataframe.iloc[i][col] < 40: retult_dic[col] = 'FAIL'
+            elif col == 'docsIfDownChannelPower':
+                if abs(dataframe.iloc[i][col]-0) > 2: retult_dic[col] = 'FAIL'
+            else: continue
     return html.Div([
         html.Table(
         # Header
-        [html.Tr([html.Th(col) for col in order])] 
+        [html.Tr([html.Th(col,style=text_style(retult_dic[col])) for col in order])] 
 
         # Body
         # [html.Tr([
         #     html.Td('PASS') for col in order
         # ])]
         ),
-        html.H4('PASS',style={'color': '#008000'}),
+        html.H3(retult_dic[col],style=text_style(retult_dic[col])),
         html.Br()
         ])
 
@@ -149,6 +112,10 @@ def getDsId(wan):
         dic[value] = index
     return dic
 
+def initView(msg,items,color):
+    init = html.Div(style={'color': color}, children=(msg))
+    DsInfo = pd.DataFrame()
+    return init, generate_result(DsInfo, items)
 ############################################### web view ################################################
 
 app = dash.Dash()
@@ -158,18 +125,6 @@ app.layout = html.Div([
     html.Div(id='output-data-1'),
     dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-2'),
-    dcc.Input(id='id-3', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-3'),
-    dcc.Input(id='id-4', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-4'),
-    dcc.Input(id='id-5', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-5'),
-    dcc.Input(id='id-6', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-6'),
-    dcc.Input(id='id-7', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-7'),
-    dcc.Input(id='id-8', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-8'),
     # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ],style={'columnCount': 2})
 
@@ -198,9 +153,11 @@ def update_output_1(input_value):
         except:
             return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
+        mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
+        if mac != str(input_value):
+            return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), items.keys(),'#f70404')
         sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
+        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + mac + ', WAN : ' + wan +') '+
             str(datetime.datetime.fromtimestamp(time.time()))))
         try:
             dsIdDic = getDsId(wan)
@@ -215,17 +172,10 @@ def update_output_1(input_value):
             return waninfo, sysinfo
         return waninfo, generate_result(DsInfo, DsOrder)
     elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
+        return initView('Input Mac, Start Query Snmp!!',items.keys(),'#5031c6')
     else:
         # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
+        return initView('Mac Error', items.keys(),'#f70404')
 
 @app.callback(
     Output(component_id='output-data-2', component_property='children'),
@@ -239,9 +189,9 @@ def update_output_2(input_value):
         except:
             return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
+        mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
         sysinfo = html.Div(style={'color': '#5031c6'}, children=('System : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
+        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + mac + ', WAN : ' + wan +') '+
             str(datetime.datetime.fromtimestamp(time.time()))))
         try:
             dsIdDic = getDsId(wan)
@@ -267,254 +217,6 @@ def update_output_2(input_value):
         DsInfo = pd.DataFrame()
         DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
         return err, generate_result(DsInfo, DsOrder)
-
-@app.callback(
-    Output(component_id='output-data-3', component_property='children'),
-    [Input(component_id='id-3', component_property='value')]
-)
-
-def update_output_3(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        try:
-            dsIdDic = getDsId(wan)
-        except Exception as err:
-            return html.Div(style={'color': '#f70404'}, children=(err))
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        DsOrder = queritems
-        print(DsInfo)
-        if 'No SNMP response' in modemsys:
-            return waninfo, sysinfo
-        return waninfo, generate_result(DsInfo, DsOrder)
-    elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
-    else:
-        # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
-
-
-@app.callback(
-    Output(component_id='output-data-4', component_property='children'),
-    [Input(component_id='id-4', component_property='value')]
-)
-
-def update_output_4(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        try:
-            dsIdDic = getDsId(wan)
-        except Exception as err:
-            return html.Div(style={'color': '#f70404'}, children=(err))
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        DsOrder = queritems
-        print(DsInfo)
-        if 'No SNMP response' in modemsys:
-            return waninfo, sysinfo
-        return waninfo, generate_result(DsInfo, DsOrder)
-    elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
-    else:
-        # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
-
-@app.callback(
-    Output(component_id='output-data-5', component_property='children'),
-    [Input(component_id='id-5', component_property='value')]
-)
-
-def update_output_5(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        try:
-            dsIdDic = getDsId(wan)
-        except Exception as err:
-            return html.Div(style={'color': '#f70404'}, children=(err))
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        DsOrder = queritems
-        print(DsInfo)
-        if 'No SNMP response' in modemsys:
-            return waninfo, sysinfo
-        return waninfo, generate_result(DsInfo, DsOrder)
-    elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
-    else:
-        # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
-
-@app.callback(
-    Output(component_id='output-data-6', component_property='children'),
-    [Input(component_id='id-6', component_property='value')]
-)
-
-def update_output_6(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        try:
-            dsIdDic = getDsId(wan)
-        except Exception as err:
-            return html.Div(style={'color': '#f70404'}, children=(err))
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        DsOrder = queritems
-        print(DsInfo)
-        if 'No SNMP response' in modemsys:
-            return waninfo, sysinfo
-        return waninfo, generate_result(DsInfo, DsOrder)
-    elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
-    else:
-        # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
-
-@app.callback(
-    Output(component_id='output-data-7', component_property='children'),
-    [Input(component_id='id-7', component_property='value')]
-)
-
-def update_output_7(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        try:
-            dsIdDic = getDsId(wan)
-        except Exception as err:
-            return html.Div(style={'color': '#f70404'}, children=(err))
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        DsOrder = queritems
-        print(DsInfo)
-        if 'No SNMP response' in modemsys:
-            return waninfo, sysinfo
-        return waninfo, generate_result(DsInfo, DsOrder)
-    elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
-    else:
-        # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
-
-@app.callback(
-    Output(component_id='output-data-8', component_property='children'),
-    [Input(component_id='id-8', component_property='value')]
-)
-
-def update_output_8(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return html.Div(style={'color': '#f70404'}, children=('Get IP Error!!'))
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp query(MAC : ' + str(mac)[2:].upper() + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        try:
-            dsIdDic = getDsId(wan)
-        except Exception as err:
-            return html.Div(style={'color': '#f70404'}, children=(err))
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        DsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # DsOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        DsOrder = queritems
-        print(DsInfo)
-        if 'No SNMP response' in modemsys:
-            return waninfo, sysinfo
-        return waninfo, generate_result(DsInfo, DsOrder)
-    elif len(input_value) == 0:
-        # Inital view
-        init = html.Div(style={'color': '#5031c6'}, children=('Input Mac, Start Query Snmp!!'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return init, generate_result(DsInfo, DsOrder)
-    else:
-        # Mac Error view
-        err = html.Div(style={'color': '#f70404'}, children=('Mac Error'))
-        DsInfo = pd.DataFrame()
-        DsOrder = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        return err, generate_result(DsInfo, DsOrder)
-
 
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
