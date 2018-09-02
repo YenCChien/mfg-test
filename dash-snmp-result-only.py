@@ -192,72 +192,120 @@ groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]
 #     'c353e8ef842413cae56ae3920b8fd78468aa4cb2/'
 #     'usa-agricultural-exports-2011.csv')
 
-@app.callback(
-    Output(component_id='output-data-1', component_property='children'),
-    [Input(component_id='id-1', component_property='value')]
-)
+def generate_output_id(value):
+    return 'output-data-{}'.format(value)
 
-def update_output(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return initView('Query IP Fail !!',mibs.keys(),'#f70404')
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
-        if mac != str(input_value):
-            return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        dsIdDic = getDsId(wan)
-        usIdDic = getUsId(wan)
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
-        print(dsInfo)
-        if 'No SNMP response' in modemsys:
-            return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
-        return waninfo, generate_result(dsInfo, testOrder)
-    elif len(input_value) == 0:
-        return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
-    else:
-        # Mac Error view
-        return initView('Mac Error', mibs.keys(),'#f70404')
+def generate_input_id(value):
+    return 'id-{}'.format(value)
 
-@app.callback(
-    Output(component_id='output-data-2', component_property='children'),
-    [Input(component_id='id-2', component_property='value')]
-)
+def generate_output_callback(datasource_1_value):
+    def output_callback(input_value):
+        if len(input_value) == 12:
+            try:
+                wan = SnmpGetWanIp(CMTS,input_value)
+            except:
+                return initView('Query IP Fail !!',mibs.keys(),'#f70404')
+            modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
+            mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
+            if mac != str(input_value):
+                return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
+            sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
+            waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
+                str(datetime.datetime.fromtimestamp(time.time()))))
+            dsIdDic = getDsId(wan)
+            usIdDic = getUsId(wan)
+            queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
+            dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
+            # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
+            testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
+            print(dsInfo)
+            if 'No SNMP response' in modemsys:
+                return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
+            return waninfo, generate_result(dsInfo, testOrder)
+        elif len(input_value) == 0:
+            return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
+        else:
+            # Mac Error view
+            return initView('Mac Error', mibs.keys(),'#f70404')
+    return output_callback
 
-def update_output(input_value):
-    if len(input_value) == 12:
-        try:
-            wan = SnmpGetWanIp(CMTS,input_value)
-        except:
-            return initView('Query IP Fail !!',mibs.keys(),'#f70404')
-        modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-        mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
-        if mac != str(input_value):
-            return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
-        sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-        waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
-            str(datetime.datetime.fromtimestamp(time.time()))))
-        dsIdDic = getDsId(wan)
-        queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-        dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-        # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-        testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
-        print(dsInfo)
-        if 'No SNMP response' in modemsys:
-            return initView(waninfo, sysinfo)
-        return waninfo, generate_result(dsInfo, testOrder)
-    elif len(input_value) == 0:
-        return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
-    else:
-        # Mac Error view
-        return initView('Mac Error', mibs.keys(),'#f70404')
+
+app.config.supress_callback_exceptions = True
+
+for value in range(1,3):
+    app.callback(
+        Output(generate_output_id(value), 'children'),
+        [Input(generate_input_id(value), 'value')])(
+        generate_output_callback(value)
+    )
+    
+
+# @app.callback(
+#     Output(component_id='output-data-1', component_property='children'),
+#     [Input(component_id='id-1', component_property='value')]
+# )
+
+# def update_output(input_value):
+#     if len(input_value) == 12:
+#         try:
+#             wan = SnmpGetWanIp(CMTS,input_value)
+#         except:
+#             return initView('Query IP Fail !!',mibs.keys(),'#f70404')
+#         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
+#         mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
+#         if mac != str(input_value):
+#             return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
+#         sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
+#         waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
+#             str(datetime.datetime.fromtimestamp(time.time()))))
+#         dsIdDic = getDsId(wan)
+#         usIdDic = getUsId(wan)
+#         queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
+#         dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
+#         # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
+#         testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
+#         print(dsInfo)
+#         if 'No SNMP response' in modemsys:
+#             return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
+#         return waninfo, generate_result(dsInfo, testOrder)
+#     elif len(input_value) == 0:
+#         return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
+#     else:
+#         # Mac Error view
+#         return initView('Mac Error', mibs.keys(),'#f70404')
+
+# @app.callback(
+#     Output(component_id='output-data-2', component_property='children'),
+#     [Input(component_id='id-2', component_property='value')]
+# )
+
+# def update_output(input_value):
+#     if len(input_value) == 12:
+#         try:
+#             wan = SnmpGetWanIp(CMTS,input_value)
+#         except:
+#             return initView('Query IP Fail !!',mibs.keys(),'#f70404')
+#         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
+#         mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
+#         if mac != str(input_value):
+#             return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
+#         sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
+#         waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
+#             str(datetime.datetime.fromtimestamp(time.time()))))
+#         dsIdDic = getDsId(wan)
+#         queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
+#         dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
+#         # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
+#         testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
+#         print(dsInfo)
+#         if 'No SNMP response' in modemsys:
+#             return initView(waninfo, sysinfo)
+#         return waninfo, generate_result(dsInfo, testOrder)
+#     elif len(input_value) == 0:
+#         return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
+#     else:
+#         # Mac Error view
+#         return initView('Mac Error', mibs.keys(),'#f70404')
 
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
