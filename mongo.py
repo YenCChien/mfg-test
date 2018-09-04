@@ -1,46 +1,6 @@
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
-conn = MongoClient("192.168.12.90:27017")
-
-db = conn.config
-collection = db.Cal_US
-
-collection.stats
-
-cursor = collection.find({})
-data = [d for d in cursor]
-print(data)
-
-
-collection.insert_one({"_id":"999","value":"8888"})
-collection.insert_one({"_id":"777","value":"8888"})
-
-{
-    "_id" : "6863",
-    "MAC" : "F81D0FDA6863",
-    "Band" : "1,5-85",
-    "5" : "28",
-    "10" : "28",
-    "20" : "29",
-    "30" : "30",
-    "40" : "30",
-    "50" : "30",
-    "60" : "30",
-    "70" : "30",
-    "80" : "30"
-}
-
-
-i = 2
-x['_id'] += '-{}'.format(i)
-collection.insert_one()
-
-cursor = collection.find({})
-data = [d for d in cursor]
-
-data
-
 class Mongodb:
     def __init__(self, ip, port):
         self.conn = MongoClient("{0}:{1}".format(ip,port))
@@ -74,22 +34,22 @@ class Mongodb:
     def close(self):
         self.conn.close()
 
-from pymongo import MongoClient
-from bson.objectid import ObjectId
-
-c = Mongodb('192.168.12.90','27017')
-c.login_db('AFI')
-c.collection('Cal_US')
-x = {
-    "_id" : "F81D0FDA6863",
-    "Band" : "1,5-85",
-    "5" : "28",
-    "10" : "28",
-    "20" : "29",
-    "30" : "30",
-    "40" : "30",
-    "50" : "30",
-    "60" : "30",
-    "70" : "30",
-    "80" : "30"
-}
+def saveDB(db, table, data, server, port=27017):
+    c = Mongodb(server,port)
+    c.login_db(db)
+    c.collection(table)
+    c.insert(data)
+    c.close
+    # x = {
+    #     "_id" : "F81D0FDA6863",
+    #     "Band" : "1,5-85",
+    #     "5" : "28",
+    #     "10" : "28",
+    #     "20" : "29",
+    #     "30" : "30",
+    #     "40" : "30",
+    #     "50" : "30",
+    #     "60" : "30",
+    #     "70" : "30",
+    #     "80" : "30"
+    # }

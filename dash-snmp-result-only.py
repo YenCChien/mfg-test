@@ -9,11 +9,11 @@ from flask import request
 import Snmp
 from snmplib import *
 import pandas as pd
-
+from mongo import *
 
 ### Basic Setting ###
 CMTS = '192.168.45.254'
-MongoServer = '192.168.12.90'
+MongoServer = '192.168.45.42'
 mibs = {
         'DsQAM':    ['docsIfDownChannelPower'],
         'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
@@ -24,8 +24,15 @@ mibs = {
         }
 RxMER = 38
 UsSNR = 40
-DsPower = {603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
-UsPower = {35.2:48.5,37:49,38.8:48,40.6:47}
+DsPower = {
+            '192.168.0.11':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5},
+            '192.168.0.10':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
+            }
+UsPower = {
+            '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
+            '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
+            }
+SaveDB = True
 #####################
 
 def text_style(result):
@@ -44,8 +51,8 @@ def getKeysByValues(value):
     for i in mibs:
         if mibs[i][0] == value:
             return i
-    
-def generate_result(dsdata, usdata, order, max_rows=10):
+
+def generate_result(dsdata, usdata, order, mac=None):
     if dsdata.empty or usdata.empty:
         return html.Div([
         html.Table(
@@ -58,32 +65,66 @@ def generate_result(dsdata, usdata, order, max_rows=10):
     # create dic of test status for all test items
     retult_dic = {}
     for c in order:retult_dic[c] = 'PASS'
-    # confirm Ds signal 
+    dsPowerResult,dsRxMerResult = [],[]
+    # confirm Ds signal
     for i in range(len(dsdata)):
-        # print(i)
         for col in order:
-            ## Debug
             if col == 'docsIf3CmStatusUsTxPower' or col == 'docsIf3CmtsCmUsStatusSignalNoise': continue
-            print(dsdata.iloc[i][col])
             if col == 'docsIf3SignalQualityExtRxMER':
-                if dsdata.iloc[i][col] < RxMER: retult_dic[col] = 'FAIL'
+                if dsdata.iloc[i][col] < RxMER:
+                    retult_dic[col] = 'FAIL'
+                    dsPowerResult.append('FAIL')
+                else:
+                    dsPowerResult.append('PASS')
             elif col == 'docsIfDownChannelPower':
                 refDsFreq = int(dsdata.iloc[i]['docsIfDownChannelFrequency'])
-                # print(dataframe.iloc[i][col])
-                if abs(dsdata.iloc[i][col]-DsPower[refDsFreq/1000000]) > 2: retult_dic[col] = 'FAIL'
+                if abs(dsdata.iloc[i][col]-DsPower[request.remote_addr][refDsFreq/1000000]) > 2:
+                    retult_dic[col] = 'FAIL'
+                    dsRxMerResult.append('FAIL')
+                else:
+                    dsRxMerResult.append('PASS')
             else: continue
-    # print(retult_dic)
-    # with pd.option_context('display.max_rows', 20, 'display.max_columns', 10):
-    #     print(usdata)
+    usPowerResult,usSnrResult = [],[]
     # confirm Us signal
     for i in range(len(usdata)):
         for col in order:
             if col == 'docsIfDownChannelPower' or col == 'docsIf3SignalQualityExtRxMER': continue
             if col == 'docsIf3CmStatusUsTxPower':
                 refUsFreq = int(usdata.iloc[i]['docsIfUpChannelFrequency'])
-                if abs(usdata.iloc[i][col]-UsPower[refUsFreq/1000000]) > 2: retult_dic[col] = 'FAIL'
+                if abs(usdata.iloc[i][col]-UsPower[request.remote_addr][refUsFreq/1000000]) > 2:
+                    retult_dic[col] = 'FAIL'
+                    usPowerResult.append('FAIL')
+                else:
+                    usPowerResult.append('PASS')
             elif col == 'docsIf3CmtsCmUsStatusSignalNoise':
-                if usdata.iloc[i][col] < UsSNR: retult_dic[col] = 'FAIL'
+                if usdata.iloc[i][col] < UsSNR:
+                    retult_dic[col] = 'FAIL'
+                    usSnrResult.append('FAIL')
+                else:
+                    usSnrResult.append('PASS')
+    if SaveDB:
+        DsPwrJson = {"_id":mac,
+                    "TestTime":"",
+                    "Time":datetime.datetime.fromtimestamp(time.time()),
+                    "ChannelId":list(dsdata['docsIfDownChannelId']),
+                    "ChannelIndex":list(dsdata['docsIfDownChannelIdx']),
+                    "Frequency":list(dsdata['docsIfDownChannelFrequency']),
+                    "ReportPwr":list(dsdata['docsIfDownChannelPower']),
+                    "MeasurePwr":[DsPower[request.remote_addr][float(x)/1000000] for x in sorted(dsdata['docsIfDownChannelFrequency'])],
+                    "ChResult":dsPowerResult,
+                    "Result":retult_dic['docsIfDownChannelPower'],
+                    "log": "",
+                    }
+        print('DsPwrJson : ', DsPwrJson)
+        saveDB('AFI', 'DsQAM', DsPwrJson, MongoServer)
+    # print('ds power:',dsPowerResult)
+    # print('ds Mer:',dsRxMerResult)
+    # print('us power:',usPowerResult)
+    # print('us SNR:',usSnrResult)
+    # print('MAC: ',mac)
+    # with pd.option_context('display.max_rows', 20, 'display.max_columns', 10):
+    #     print(usdata)
+    #     print(dsdata)
     if 'FAIL' in [x for x in retult_dic.values()]:
         status = 'FAIL'
     else:
@@ -92,10 +133,6 @@ def generate_result(dsdata, usdata, order, max_rows=10):
         html.Table(
         # Header
         [html.Tr([html.Th(children=getKeysByValues(col),style=text_style(retult_dic[col])) for col in order])] 
-        # Body
-        # [html.Tr([
-        #     html.Td('PASS') for col in order
-        # ])]
         ),
         html.H3(status,style=text_style(status)),
         html.Br()
@@ -208,12 +245,12 @@ app.layout = html.Div([
     # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ],style={'columnCount': 2})
 
-# groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]  
-# num = [46, 8, 12, 12, 6, 58]
-# dict = {"groups": groups,  
-#         "num": num
-#        }
-# df = pd.DataFrame(dict)
+groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]  
+num = [46, 8, 12, 12, 6, 58]
+dict = {"groups": groups,  
+        "num": num
+       }
+df = pd.DataFrame(dict)
 
 def generate_output_id(value):
     return 'output-data-{}'.format(value)
@@ -245,7 +282,7 @@ def generate_output_callback(datasource_1_value):
             print(usInfo)
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
-            return waninfo, generate_result(dsInfo, usInfo, testOrder)
+            return waninfo, generate_result(dsInfo, usInfo, testOrder, input_value)
         elif len(input_value) == 0:
             return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
         else:
