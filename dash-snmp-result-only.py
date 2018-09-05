@@ -52,7 +52,7 @@ def getKeysByValues(value):
         if mibs[i][0] == value:
             return i
 
-def generate_result(dsdata, usdata, order, mac=None):
+def generate_result(dsdata, usdata, order):
     if dsdata.empty or usdata.empty:
         return html.Div([
         html.Table(
@@ -102,29 +102,40 @@ def generate_result(dsdata, usdata, order, mac=None):
                     usSnrResult.append('FAIL')
                 else:
                     usSnrResult.append('PASS')
-    if SaveDB:
-        DsPwrJson = {"_id":mac,
-                    "TestTime":"",
-                    "Time":datetime.datetime.fromtimestamp(time.time()),
-                    "ChannelId":list(dsdata['docsIfDownChannelId']),
-                    "ChannelIndex":list(dsdata['docsIfDownChannelIdx']),
-                    "Frequency":list(dsdata['docsIfDownChannelFrequency']),
-                    "ReportPwr":list(dsdata['docsIfDownChannelPower']),
-                    "MeasurePwr":[DsPower[request.remote_addr][float(x)/1000000] for x in sorted(dsdata['docsIfDownChannelFrequency'])],
-                    "ChResult":dsPowerResult,
-                    "Result":retult_dic['docsIfDownChannelPower'],
-                    "log": "",
-                    }
-        print('DsPwrJson : ', DsPwrJson)
-        saveDB('AFI', 'DsQAM', DsPwrJson, MongoServer)
-    # print('ds power:',dsPowerResult)
-    # print('ds Mer:',dsRxMerResult)
-    # print('us power:',usPowerResult)
-    # print('us SNR:',usSnrResult)
-    # print('MAC: ',mac)
     # with pd.option_context('display.max_rows', 20, 'display.max_columns', 10):
     #     print(usdata)
     #     print(dsdata)
+    DsPwrJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+                "ChannelId":list(dsdata['docsIfDownChannelId']),
+                "ChannelIndex":list(dsdata['docsIfDownChannelIdx']),
+                "Frequency":list(dsdata['docsIfDownChannelFrequency']),
+                "ReportPwr":list(dsdata['docsIfDownChannelPower']),
+                "MeasurePwr":[DsPower[request.remote_addr][float(x)/1000000] for x in sorted(dsdata['docsIfDownChannelFrequency'])],
+                "ChResult":dsPowerResult,
+                "Result":retult_dic['docsIfDownChannelPower']}
+    DsRxMerJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+                "ChannelId":list(dsdata['docsIfDownChannelId']),
+                "Frequency":list(dsdata['docsIfDownChannelFrequency']),
+                "RxMer":list(dsdata['docsIf3SignalQualityExtRxMER']),
+                "Criteria":RxMER,
+                "ChResult":dsRxMerResult,
+                "Result":retult_dic['docsIf3SignalQualityExtRxMER']}
+    UsPwrJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+                "ChannelId":list(usdata['docsIfUpChannelId']),
+                "ChannelIndex":list(usdata['docsIfUpChannelIdx']),
+                "Frequency":list(usdata['docsIfUpChannelFrequency']),
+                "ReportPwr":list(usdata['docsIf3CmStatusUsTxPower']),
+                "MeasurePwr":[UsPower[request.remote_addr][float(x)/1000000] for x in sorted(usdata['docsIfUpChannelFrequency'])],
+                "ChResult":usPowerResult,
+                "Result":retult_dic['docsIf3CmStatusUsTxPower']}
+    UsSnrJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+                "ChannelId":list(usdata['docsIfUpChannelId']),
+                "ChannelIndex":list(usdata['docsIfUpChannelIdx']),
+                "Frequency":list(usdata['docsIfUpChannelFrequency']),
+                "ReportPwr":list(usdata['docsIf3CmtsCmUsStatusSignalNoise']),
+                "Criteria":UsSNR,
+                "ChResult":usSnrResult,
+                "Result":retult_dic['docsIf3CmtsCmUsStatusSignalNoise']}
     if 'FAIL' in [x for x in retult_dic.values()]:
         status = 'FAIL'
     else:
@@ -136,7 +147,7 @@ def generate_result(dsdata, usdata, order, mac=None):
         ),
         html.H3(status,style=text_style(status)),
         html.Br()
-        ])
+        ]), DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson
 
 def query_ds_snmp(wan, dsdicidx):
     items = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
@@ -173,10 +184,10 @@ def query_us_snmp(wan, usdicidx):
     chid = [t[0] for t in sorted(id_idx.items())]
     chidx = [t[1] for t in sorted(id_idx.items())]
     chfreq = [list(usdicidx.keys())[list(usdicidx.values()).index(t)] for t in chidx]
-    dic = {'docsIfDownChannelId' : chid, 'docsIfDownChannelIdx' : chidx, 'docsIfUpChannelFrequency' : chfreq}
+    dic = {'docsIfUpChannelId' : chid, 'docsIfUpChannelIdx' : chidx, 'docsIfUpChannelFrequency' : chfreq}
     txPower = Snmp.SnmpWalk(wan,snmp_oid('docsIf3CmStatusUsTxPower'))
     chPList = []
-    for idx in dic['docsIfDownChannelIdx']:
+    for idx in dic['docsIfUpChannelIdx']:
         for p in txPower:
             snmp_idx = p.split(' ')[0].split('.')[-1]
             snmp_value = p.split(' ')[-1]
@@ -262,6 +273,7 @@ def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
+            testTimeStart = time.time()
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
@@ -273,16 +285,33 @@ def generate_output_callback(datasource_1_value):
             sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
             waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
                 str(datetime.datetime.fromtimestamp(time.time()))))
+            dsStartTime = time.time()
             dsIdDic = getDsId(wan)
-            usIdDic = getUsId(wan)
             dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic))
+            dsTestTime = time.time()-dsStartTime
+            usStartTime = time.time()
+            usIdDic = getUsId(wan)
             usInfo = pd.DataFrame(query_us_snmp(wan, usIdDic))
+            usTestTime = time.time()-usStartTime
             # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
             testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
-            print(usInfo)
+            responseHtml, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson = generate_result(dsInfo, usInfo, testOrder)
+            DsPwrJson.update({"_id":input_value,"TestTime":dsTestTime})
+            DsRxMerJson.update({"_id":input_value,"TestTime":dsTestTime})
+            UsPwrJson.update({"_id":input_value,"TestTime":usTestTime})
+            UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
+            allTestTime = time.time()-testTimeStart
+            # logJson.update({"_id":input_value, "TestTime":allTestTime,"log":})
+
+            if SaveDB:
+                saveDB('AFI', 'DsQAM', DsPwrJson, MongoServer)
+                saveDB('AFI', 'DsMER', DsRxMerJson, MongoServer)
+                saveDB('AFI', 'UsQAM', UsPwrJson, MongoServer)
+                saveDB('AFI', 'UsSNR', UsSnrJson, MongoServer)
+
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
-            return waninfo, generate_result(dsInfo, usInfo, testOrder, input_value)
+            return waninfo, responseHtml
         elif len(input_value) == 0:
             return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
         else:
