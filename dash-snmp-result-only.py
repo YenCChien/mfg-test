@@ -10,6 +10,7 @@ import Snmp
 from snmplib import *
 import pandas as pd
 from mongo import *
+import bz2
 
 ### Basic Setting ###
 CMTS = '192.168.45.254'
@@ -32,7 +33,7 @@ UsPower = {
             '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
             '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
-SaveDB = False
+SaveDB = True
 #####################
 
 def text_style(result):
@@ -132,7 +133,7 @@ def generate_result(dsdata, usdata, order):
                 "ChannelId":list(usdata['docsIfUpChannelId']),
                 "ChannelIndex":list(usdata['docsIfUpChannelIdx']),
                 "Frequency":list(usdata['docsIfUpChannelFrequency']),
-                "ReportPwr":list(usdata['docsIf3CmtsCmUsStatusSignalNoise']),
+                "UsSNR":list(usdata['docsIf3CmtsCmUsStatusSignalNoise']),
                 "Criteria":UsSNR,
                 "ChResult":usSnrResult,
                 "Result":retult_dic['docsIf3CmtsCmUsStatusSignalNoise']}
@@ -147,7 +148,7 @@ def generate_result(dsdata, usdata, order):
         ),
         html.H3(status,style=text_style(status)),
         html.Br()
-        ]), DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson
+        ]), status, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson
 
 def query_ds_snmp(wan, dsdicidx):
     items = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
@@ -217,7 +218,6 @@ def query_us_snmp(wan, usdicidx):
     dic.update({'docsIf3CmtsCmUsStatusSignalNoise':cmtsUsSnrList})
     return dic
 
-
 def getUsId(wan):
     data = Snmp.SnmpWalk(wan,snmp_oid('docsIfUpChannelFrequency'))
     dic = {}
@@ -247,21 +247,26 @@ def initView(msg,items,color):
 ############################################### web view ################################################
 
 app = dash.Dash()
-
+app.title = 'AFI-Remote-Station'
 app.layout = html.Div([
+    # html.Div([
     dcc.Input(id='id-1', placeholder='Enter a Mac...', value='', type='text'),
+        # dcc.Interval(id='interval', interval=500),
+        # dcc.RadioItems(
+        # id='lock',
+        # options=[{'label': i, 'value': i} for i in ['Running...', 'Free']])]),
     html.Div(id='output-data-1'),
     dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-2'),
     # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ],style={'columnCount': 2})
 
-groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]  
-num = [46, 8, 12, 12, 6, 58]
-dict = {"groups": groups,  
-        "num": num
-       }
-df = pd.DataFrame(dict)
+# groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]  
+# num = [46, 8, 12, 12, 6, 58]
+# dict = {"groups": groups,  
+#         "num": num
+#        }
+# df = pd.DataFrame(dict)
 
 def generate_output_id(value):
     return 'output-data-{}'.format(value)
@@ -295,25 +300,38 @@ def generate_output_callback(datasource_1_value):
             usTestTime = time.time()-usStartTime
             # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
             testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
-            responseHtml, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson = generate_result(dsInfo, usInfo, testOrder)
+            responseHtml, testResult,DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson = generate_result(dsInfo, usInfo, testOrder)
             DsPwrJson.update({"_id":input_value,"TestTime":dsTestTime})
             DsRxMerJson.update({"_id":input_value,"TestTime":dsTestTime})
             UsPwrJson.update({"_id":input_value,"TestTime":usTestTime})
             UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
             allTestTime = time.time()-testTimeStart
-            # logJson.update({"_id":input_value, "TestTime":allTestTime,"log":})
+            
+            log = 'Remote IP : '+request.remote_addr+'-{}'.format(datasource_1_value)+'\n'
+            log += 'MAC Address :' +input_value+'\n'
+            log += modemsys+'\n'
+            log += 'Start Time : '+str(datetime.datetime.fromtimestamp(testTimeStart))+'\n'
+            log += '===DsQAM===\n'+pd.DataFrame(DsPwrJson).to_string()+'\n'
+            log += '===RxMER===\n'+pd.DataFrame(DsRxMerJson).to_string()+'\n'
+            log += '===UsQAM===\n'+pd.DataFrame(UsPwrJson).to_string()+'\n'
+            log += '===UsSNR===\n'+pd.DataFrame(UsSnrJson).to_string()+'\n'
+            log += 'Total Time : '+str(allTestTime)+'\n'
+            log += 'Test Result : '+testResult
+            bz2log = bz2.compress(log.encode('utf-8'))
+            print(bz2log)
+            # print(log)
+            logJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"log":bz2log}
             a = open(input_value,'w')
-            a.write(pd.DataFrame(DsPwrJson).to_string()+'\n')
-            a.write(pd.DataFrame(DsRxMerJson).to_string()+'\n')
-            a.write(pd.DataFrame(UsPwrJson).to_string()+'\n')
-            a.write(pd.DataFrame(UsSnrJson).to_string()+'\n')
+            a.write(log)
             a.close
+            s = bz2.decompress(bz2log)
+            print(str(s, encoding = 'utf-8'))
             if SaveDB:
                 saveDB('AFI', 'DsQAM', DsPwrJson, MongoServer)
                 saveDB('AFI', 'DsMER', DsRxMerJson, MongoServer)
                 saveDB('AFI', 'UsQAM', UsPwrJson, MongoServer)
                 saveDB('AFI', 'UsSNR', UsSnrJson, MongoServer)
-
+                saveDB('AFI', 'Log', logJson, MongoServer)
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
             return waninfo, responseHtml
