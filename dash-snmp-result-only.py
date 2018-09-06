@@ -32,7 +32,7 @@ UsPower = {
             '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
             '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
-SaveDB = True
+SaveDB = False
 #####################
 
 def text_style(result):
@@ -302,7 +302,12 @@ def generate_output_callback(datasource_1_value):
             UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
             allTestTime = time.time()-testTimeStart
             # logJson.update({"_id":input_value, "TestTime":allTestTime,"log":})
-
+            a = open(input_value,'w')
+            a.write(pd.DataFrame(DsPwrJson).to_string()+'\n')
+            a.write(pd.DataFrame(DsRxMerJson).to_string()+'\n')
+            a.write(pd.DataFrame(UsPwrJson).to_string()+'\n')
+            a.write(pd.DataFrame(UsSnrJson).to_string()+'\n')
+            a.close
             if SaveDB:
                 saveDB('AFI', 'DsQAM', DsPwrJson, MongoServer)
                 saveDB('AFI', 'DsMER', DsRxMerJson, MongoServer)
