@@ -4,7 +4,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table_experiments as dt
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, Event
 from flask import request
 import Snmp
 from snmplib import *
@@ -33,7 +33,8 @@ UsPower = {
             '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
             '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
-SaveDB = True
+SaveDB = False
+Id_Status = {1:False,2:False}
 #####################
 
 def text_style(result):
@@ -251,13 +252,10 @@ app.title = 'AFI-Remote-Station'
 app.layout = html.Div([
     # html.Div([
     dcc.Input(id='id-1', placeholder='Enter a Mac...', value='', type='text'),
-        # dcc.Interval(id='interval', interval=500),
-        # dcc.RadioItems(
-        # id='lock',
-        # options=[{'label': i, 'value': i} for i in ['Running...', 'Free']])]),
     html.Div(id='output-data-1'),
     dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-2'),
+    dcc.Interval(id='interval', interval=1000),
     # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ],style={'columnCount': 2})
 
@@ -274,10 +272,24 @@ def generate_output_id(value):
 def generate_input_id(value):
     return 'id-{}'.format(value)
 
+def display_status(id_):
+    def output_callback():
+        return Id_Status[id_]
+    return output_callback
+
+for value in range(1,3):
+    app.callback(
+        Output(generate_input_id(value), 'disabled'),
+        events=[Event('interval', 'interval')])(
+        display_status(value)
+    )
+
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
+            global Id_Status
+            Id_Status[datasource_1_value] = True
             testTimeStart = time.time()
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
@@ -332,6 +344,7 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'UsQAM', UsPwrJson, MongoServer)
                 saveDB('AFI', 'UsSNR', UsSnrJson, MongoServer)
                 saveDB('AFI', 'Log', logJson, MongoServer)
+            Id_Status[datasource_1_value] = False
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
             return waninfo, responseHtml
