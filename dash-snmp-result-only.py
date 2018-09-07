@@ -148,7 +148,12 @@ def generate_result(dsdata, usdata, order):
         [html.Tr([html.Th(children=getKeysByValues(col),style=text_style(retult_dic[col])) for col in order])] 
         ),
         html.H3(status,style=text_style(status)),
-        html.Br()
+        html.Br(),
+        dcc.ConfirmDialog(
+        id='led-alert',
+        message='Danger danger! Are you sure you want to continue?',
+        displayed=True,
+        ),
         ]), status, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson
 
 def query_ds_snmp(wan, dsdicidx):
@@ -255,16 +260,9 @@ app.layout = html.Div([
     html.Div(id='output-data-1'),
     dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-2'),
-    dcc.Interval(id='interval', interval=1000),
+    dcc.Interval(id='input_interval', interval=1000),
     # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ],style={'columnCount': 2})
-
-# groups = ["Movies", "Sports", "Coding", "Fishing", "Dancing", "cooking"]  
-# num = [46, 8, 12, 12, 6, 58]
-# dict = {"groups": groups,  
-#         "num": num
-#        }
-# df = pd.DataFrame(dict)
 
 def generate_output_id(value):
     return 'output-data-{}'.format(value)
@@ -272,29 +270,31 @@ def generate_output_id(value):
 def generate_input_id(value):
     return 'id-{}'.format(value)
 
+
 def display_status(id_):
     def output_callback():
         return Id_Status[id_]
     return output_callback
 
-for value in range(1,3):
-    app.callback(
-        Output(generate_input_id(value), 'disabled'),
-        events=[Event('interval', 'interval')])(
-        display_status(value)
-    )
-
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
+            a = open(input_value,'w')
+            log = 'Remote IP : '+request.remote_addr+'-{}'.format(datasource_1_value)+'\n'
+            log += 'MAC Address :' +input_value+'\n'
+
             global Id_Status
             Id_Status[datasource_1_value] = True
             testTimeStart = time.time()
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
-                return initView('Query IP Fail !!',mibs.keys(),'#f70404')
+                Id_Status[datasource_1_value] = False
+                log += 'Error : Query IP Fail !!'
+                a.write(log)
+                a.close() 
+                return initView('Query IP Fail !! MAC : {}'.format(input_value),mibs.keys(),'#f70404')
             modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
             mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
             if mac != str(input_value):
@@ -319,8 +319,6 @@ def generate_output_callback(datasource_1_value):
             UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
             allTestTime = time.time()-testTimeStart
             
-            log = 'Remote IP : '+request.remote_addr+'-{}'.format(datasource_1_value)+'\n'
-            log += 'MAC Address :' +input_value+'\n'
             log += modemsys+'\n'
             log += 'Start Time : '+str(datetime.datetime.fromtimestamp(testTimeStart))+'\n'
             log += '===DsQAM===\n'+pd.DataFrame(DsPwrJson).to_string()+'\n'
@@ -330,14 +328,12 @@ def generate_output_callback(datasource_1_value):
             log += 'Total Time : '+str(allTestTime)+'\n'
             log += 'Test Result : '+testResult
             bz2log = bz2.compress(log.encode('utf-8'))
-            print(bz2log)
-            # print(log)
+            # print(bz2log)
             logJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"log":bz2log}
-            a = open(input_value,'w')
             a.write(log)
             a.close
             s = bz2.decompress(bz2log)
-            print(str(s, encoding = 'utf-8'))
+            # print(str(s, encoding = 'utf-8'))
             if SaveDB:
                 saveDB('AFI', 'DsQAM', DsPwrJson, MongoServer)
                 saveDB('AFI', 'DsMER', DsRxMerJson, MongoServer)
@@ -348,11 +344,8 @@ def generate_output_callback(datasource_1_value):
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
             return waninfo, responseHtml
-        elif len(input_value) == 0:
-            return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
         else:
-            # Mac Error view
-            return initView('Mac Error', mibs.keys(),'#f70404')
+            return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
     return output_callback
 
 app.config.supress_callback_exceptions = True
@@ -363,41 +356,11 @@ for value in range(1,3):
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
     )
-    
-
-# @app.callback(
-#     Output(component_id='output-data-1', component_property='children'),
-#     [Input(component_id='id-1', component_property='value')]
-# )
-
-# def update_output(input_value):
-#     if len(input_value) == 12:
-#         try:
-#             wan = SnmpGetWanIp(CMTS,input_value)
-#         except:
-#             return initView('Query IP Fail !!',mibs.keys(),'#f70404')
-#         modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-#         mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
-#         if mac != str(input_value):
-#             return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
-#         sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
-#         waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
-#             str(datetime.datetime.fromtimestamp(time.time()))))
-#         dsIdDic = getDsId(wan)
-#         usIdDic = getUsId(wan)
-#         queritems = ['docsIfDownChannelFrequency','docsIfDownChannelPower','docsIf3SignalQualityExtRxMER']
-#         dsInfo = pd.DataFrame(query_ds_snmp(wan, dsIdDic, queritems))
-#         # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
-#         testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
-#         print(dsInfo)
-#         if 'No SNMP response' in modemsys:
-#             return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
-#         return waninfo, generate_result(dsInfo, testOrder)
-#     elif len(input_value) == 0:
-#         return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
-#     else:
-#         # Mac Error view
-#         return initView('Mac Error', mibs.keys(),'#f70404')
+    app.callback(
+        Output(generate_input_id(value), 'disabled'),
+        events=[Event('input_interval', 'interval')])(
+        display_status(value)
+    )
 
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS

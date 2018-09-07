@@ -30,6 +30,7 @@ class Mongodb:
                     self.tb.insert_one(dict([(k,dic[k]) for k in sorted(dic.keys())]))
                     break
         else:
+            print(dict([(k,dic[k]) for k in sorted(dic.keys())]))
             self.tb.insert_one(dict([(k,dic[k]) for k in sorted(dic.keys())]))
     def close(self):
         self.conn.close()
