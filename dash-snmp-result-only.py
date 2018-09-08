@@ -39,6 +39,10 @@ Led_Check = {
             1:{'PASS':0,'FAIL':0},
             2:{'PASS':0,'FAIL':0}
             }
+currLed = {
+            1:{'PASS':0,'FAIL':0},
+            2:{'PASS':0,'FAIL':0}
+            }
 #####################
 
 def text_style(result):
@@ -278,13 +282,13 @@ def generate_input_id(value):
 
 def display_status(id_):
     def output_callback(submit,cancel):
-        global Led_Check
+        global currLed
         # print('--------submit-{}:'.format(id_),submit)
         # print('--------cancel-{}:'.format(id_),cancel)
         if cancel==None: cancel = 0
         if submit==None: submit = 0
-        Led_Check[id_]['PASS']=submit
-        Led_Check[id_]['FAIL']=cancel
+        currLed[id_]['PASS']=submit
+        currLed[id_]['FAIL']=cancel
         return Id_Status[id_]
     return output_callback
 
@@ -299,19 +303,22 @@ def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
-            currentLedStat = Led_Check[datasource_1_value]
-            print('---------curr:',currentLedStat)
             a = open(input_value,'w')
             log = 'Remote IP : '+request.remote_addr+'-{}'.format(datasource_1_value)+'\n'
             log += 'MAC Address :' +input_value+'\n'
-            time.sleep(3)
-            global Id_Status
+            global Id_Status, Led_Check
             Id_Status[datasource_1_value] = True
             testTimeStart = time.time()
-            afterLedStat = Led_Check[datasource_1_value]
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
+                if currLed[datasource_1_value]['PASS'] > Led_Check[datasource_1_value]['PASS']:
+                    ledTest = 'PASS'
+                    print('-------------PASS')
+                else:
+                    ledTest = 'FAIL'
+                    print('-------------FAIL')
+                Led_Check[datasource_1_value] = currLed[datasource_1_value]
                 Id_Status[datasource_1_value] = False
                 log += 'Error : Query IP FAIL !!'
                 a.write(log)
@@ -340,13 +347,6 @@ def generate_output_callback(datasource_1_value):
             UsPwrJson.update({"_id":input_value,"TestTime":usTestTime})
             UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
             allTestTime = time.time()-testTimeStart
-            
-            afterLedStat = Led_Check[datasource_1_value]
-            print('---------after:',afterLedStat)
-            if afterLedStat['PASS'] > currentLedStat['PASS']:
-                ledTest = 'PASS'
-            else:
-                ledTest = 'FAIL'
 
             log += modemsys+'\n'
             log += 'Start Time : '+str(datetime.datetime.fromtimestamp(testTimeStart))+'\n'
@@ -371,6 +371,7 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'UsQAM', UsPwrJson, MongoServer)
                 saveDB('AFI', 'UsSNR', UsSnrJson, MongoServer)
                 saveDB('AFI', 'Log', logJson, MongoServer)
+                saveDB('AFI', 'LED', ledJson, MongoServer)
             Id_Status[datasource_1_value] = False
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
