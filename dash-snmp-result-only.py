@@ -11,6 +11,7 @@ from snmplib import *
 import pandas as pd
 from mongo import *
 import bz2
+from collections import defaultdict
 
 ### Basic Setting ###
 CMTS = '192.168.45.254'
@@ -34,15 +35,26 @@ UsPower = {
             '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
 SaveDB = False
-Id_Status = {1:False,2:False}
-Led_Check = {
-            1:{'PASS':0,'FAIL':0},
-            2:{'PASS':0,'FAIL':0}
-            }
-currLed = {
-            1:{'PASS':0,'FAIL':0},
-            2:{'PASS':0,'FAIL':0}
-            }
+#### defined stattion id & led status
+stationList = ['192.168.0.10','192.168.0.11']
+
+## Id_Status is applicated to disable input-entry since start test(2d-dict[station][id])
+Id_Status = defaultdict(dict)
+for s in stationList:
+    for n in range(1,3):
+        Id_Status[s][n]=False
+
+## Led_Check is showed status of Led before start test(3d-dict[station][id][status])
+Led_Check = defaultdict(lambda: defaultdict(dict))
+
+## currLed is keeped to update from interval(3d-dict[station][id][status]) which compare with Led_Check's status
+currLed = defaultdict(lambda: defaultdict(dict))
+for s in stationList:
+    for n in range(1,3):
+        for r in ['PASS','FAIL']:
+            Led_Check[s][n][r]=0
+            currLed[s][n][r]=0
+
 #####################
 
 def text_style(result):
@@ -287,9 +299,9 @@ def display_status(id_):
         # print('--------cancel-{}:'.format(id_),cancel)
         if cancel==None: cancel = 0
         if submit==None: submit = 0
-        currLed[id_]['PASS']=submit
-        currLed[id_]['FAIL']=cancel
-        return Id_Status[id_]
+        currLed[request.remote_addr][id_]['PASS']=submit
+        currLed[request.remote_addr][id_]['FAIL']=cancel
+        return Id_Status[request.remote_addr][id_]
     return output_callback
 
 def ckeckLed(id_):
@@ -308,12 +320,12 @@ def generate_output_callback(datasource_1_value):
             log = 'Remote IP : '+StationID+'\n'
             log += 'MAC Address :' +input_value+'\n'
             global Id_Status, Led_Check
-            Id_Status[datasource_1_value] = True
+            Id_Status[request.remote_addr][datasource_1_value] = True
             testTimeStart = time.time()
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
-                Id_Status[datasource_1_value] = False
+                Id_Status[request.remote_addr][datasource_1_value] = False
                 log += 'Error : Query IP FAIL !!'
                 a.write(log)
                 a.close() 
@@ -345,16 +357,16 @@ def generate_output_callback(datasource_1_value):
             while True:
                 print('----------curr:' ,currLed)
                 print('----------after:' ,Led_Check)
-                if currLed[datasource_1_value]['PASS'] != Led_Check[datasource_1_value]['PASS']:break
-                if currLed[datasource_1_value]['FAIL'] != Led_Check[datasource_1_value]['FAIL']:break
+                if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
+                if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
                 time.sleep(1)
-            if currLed[datasource_1_value]['PASS'] > Led_Check[datasource_1_value]['PASS']:
+            if currLed[request.remote_addr][datasource_1_value]['PASS'] > Led_Check[request.remote_addr][datasource_1_value]['PASS']:
                 ledTest = 'PASS'
-                Led_Check[datasource_1_value]['PASS'] += 1
+                Led_Check[request.remote_addr][datasource_1_value]['PASS'] += 1
                 print('-------------PASS')
             else:
                 ledTest = 'FAIL'
-                Led_Check[datasource_1_value]['FAIL'] += 1
+                Led_Check[request.remote_addr][datasource_1_value]['FAIL'] += 1
                 print('-------------FAIL')
 
             log += modemsys+'\n'
@@ -368,8 +380,8 @@ def generate_output_callback(datasource_1_value):
             log += 'Test Result : '+testResult
             bz2log = bz2.compress(log.encode('utf-8'))
             # print(bz2log)
-            logJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"log":bz2log}
-            ledJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"Result":ledTest}
+            logJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"log":bz2log,"Station-id":StationID}
+            ledJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"Result":ledTest,"Station-id":StationID}
             a.write(log)
             a.close
             s = bz2.decompress(bz2log)
@@ -381,7 +393,7 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'UsSNR', UsSnrJson, MongoServer)
                 saveDB('AFI', 'Log', logJson, MongoServer)
                 saveDB('AFI', 'LED', ledJson, MongoServer)
-            Id_Status[datasource_1_value] = False
+            Id_Status[request.remote_addr][datasource_1_value] = False
             if 'No SNMP response' in modemsys:
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
             return waninfo, responseHtml
