@@ -149,11 +149,6 @@ def generate_result(dsdata, usdata, order):
         ),
         html.H3(status,style=text_style(status)),
         html.Br(),
-        dcc.ConfirmDialog(
-        id='led-alert',
-        message='Danger danger! Are you sure you want to continue?',
-        displayed=True,
-        ),
         ]), status, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson
 
 def query_ds_snmp(wan, dsdicidx):
@@ -261,6 +256,10 @@ app.layout = html.Div([
     dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-2'),
     dcc.Interval(id='input_interval', interval=1000),
+    dcc.ConfirmDialog(
+        id='led-alert',
+        message='Danger danger! Are you sure you want to continue?',
+        ),
     # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
 ],style={'columnCount': 2})
 
@@ -276,6 +275,13 @@ def display_status(id_):
         return Id_Status[id_]
     return output_callback
 
+@app.callback(
+    Output('led-alert', 'displayed'),
+    [Input('id-1', 'disabled')])
+def ckeckLed(status):
+    print('----------',status)
+    return status
+
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
@@ -286,6 +292,7 @@ def generate_output_callback(datasource_1_value):
 
             global Id_Status
             Id_Status[datasource_1_value] = True
+            time.sleep(5)
             testTimeStart = time.time()
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
@@ -312,7 +319,7 @@ def generate_output_callback(datasource_1_value):
             usTestTime = time.time()-usStartTime
             # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
             testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
-            responseHtml, testResult,DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson = generate_result(dsInfo, usInfo, testOrder)
+            responseHtml, testResult, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson = generate_result(dsInfo, usInfo, testOrder)
             DsPwrJson.update({"_id":input_value,"TestTime":dsTestTime})
             DsRxMerJson.update({"_id":input_value,"TestTime":dsTestTime})
             UsPwrJson.update({"_id":input_value,"TestTime":usTestTime})
@@ -349,6 +356,9 @@ def generate_output_callback(datasource_1_value):
     return output_callback
 
 app.config.supress_callback_exceptions = True
+
+def generate_led_id(value):
+    return 'led-alert-{}'.format(value)
 
 for value in range(1,3):
     app.callback(
