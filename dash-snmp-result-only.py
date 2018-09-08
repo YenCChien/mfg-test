@@ -4,7 +4,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table_experiments as dt
-from dash.dependencies import Input, Output, Event
+from dash.dependencies import Input, Output, Event, State
 from flask import request
 import Snmp
 from snmplib import *
@@ -35,6 +35,10 @@ UsPower = {
             }
 SaveDB = False
 Id_Status = {1:False,2:False}
+Led_Check = {
+            1:{'PASS':0,'FAIL':0},
+            2:{'PASS':0,'FAIL':0}
+            }
 #####################
 
 def text_style(result):
@@ -257,10 +261,13 @@ app.layout = html.Div([
     html.Div(id='output-data-2'),
     dcc.Interval(id='input_interval', interval=1000),
     dcc.ConfirmDialog(
-        id='led-alert',
-        message='Danger danger! Are you sure you want to continue?',
+        id='led-alert-1',
+        message='Check LED Light On ro Not?  ID-1',
         ),
-    # html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
+    dcc.ConfirmDialog(
+        id='led-alert-2',
+        message='Check LED Light On ro Not?  ID-2',
+        ),
 ],style={'columnCount': 2})
 
 def generate_output_id(value):
@@ -269,39 +276,47 @@ def generate_output_id(value):
 def generate_input_id(value):
     return 'id-{}'.format(value)
 
-
 def display_status(id_):
-    def output_callback():
+    def output_callback(submit,cancel):
+        global Led_Check
+        # print('--------submit-{}:'.format(id_),submit)
+        # print('--------cancel-{}:'.format(id_),cancel)
+        if cancel==None: cancel = 0
+        if submit==None: submit = 0
+        Led_Check[id_]['PASS']=submit
+        Led_Check[id_]['FAIL']=cancel
         return Id_Status[id_]
     return output_callback
 
-@app.callback(
-    Output('led-alert', 'displayed'),
-    [Input('id-1', 'disabled')])
-def ckeckLed(status):
-    print('----------',status)
-    return status
+def ckeckLed(id_):
+    def output_callback(input_value,state):
+        if len(input_value) == 12:
+            return True
+        return False
+    return output_callback
 
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
+            currentLedStat = Led_Check[datasource_1_value]
+            print('---------curr:',currentLedStat)
             a = open(input_value,'w')
             log = 'Remote IP : '+request.remote_addr+'-{}'.format(datasource_1_value)+'\n'
             log += 'MAC Address :' +input_value+'\n'
-
+            time.sleep(3)
             global Id_Status
             Id_Status[datasource_1_value] = True
-            time.sleep(5)
             testTimeStart = time.time()
+            afterLedStat = Led_Check[datasource_1_value]
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
                 Id_Status[datasource_1_value] = False
-                log += 'Error : Query IP Fail !!'
+                log += 'Error : Query IP FAIL !!'
                 a.write(log)
                 a.close() 
-                return initView('Query IP Fail !! MAC : {}'.format(input_value),mibs.keys(),'#f70404')
+                return initView('ID-{0} Query IP FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404')
             modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
             mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
             if mac != str(input_value):
@@ -326,17 +341,26 @@ def generate_output_callback(datasource_1_value):
             UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
             allTestTime = time.time()-testTimeStart
             
+            afterLedStat = Led_Check[datasource_1_value]
+            print('---------after:',afterLedStat)
+            if afterLedStat['PASS'] > currentLedStat['PASS']:
+                ledTest = 'PASS'
+            else:
+                ledTest = 'FAIL'
+
             log += modemsys+'\n'
             log += 'Start Time : '+str(datetime.datetime.fromtimestamp(testTimeStart))+'\n'
             log += '===DsQAM===\n'+pd.DataFrame(DsPwrJson).to_string()+'\n'
             log += '===RxMER===\n'+pd.DataFrame(DsRxMerJson).to_string()+'\n'
             log += '===UsQAM===\n'+pd.DataFrame(UsPwrJson).to_string()+'\n'
             log += '===UsSNR===\n'+pd.DataFrame(UsSnrJson).to_string()+'\n'
+            log += 'Led Check : '+ledTest+'\n'
             log += 'Total Time : '+str(allTestTime)+'\n'
             log += 'Test Result : '+testResult
             bz2log = bz2.compress(log.encode('utf-8'))
             # print(bz2log)
             logJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"log":bz2log}
+            ledJson = {"_id":input_value,"Time":datetime.datetime.fromtimestamp(time.time()),"Result":ledTest}
             a.write(log)
             a.close
             s = bz2.decompress(bz2log)
@@ -352,7 +376,7 @@ def generate_output_callback(datasource_1_value):
                 return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
             return waninfo, responseHtml
         else:
-            return initView('Input Mac, Start Query Snmp!!',mibs.keys(),'#5031c6')
+            return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
     return output_callback
 
 app.config.supress_callback_exceptions = True
@@ -362,16 +386,24 @@ def generate_led_id(value):
 
 for value in range(1,3):
     app.callback(
+        Output(generate_led_id(value), 'displayed'),
+        [Input(generate_input_id(value), 'value')],
+        [State(generate_led_id(value), 'cancel_n_clicks_timestamp')])(
+        ckeckLed(value)
+    )
+    app.callback(
+        Output(generate_input_id(value), 'disabled'),
+        [],
+        [State(generate_led_id(value), 'submit_n_clicks'),
+        State(generate_led_id(value), 'cancel_n_clicks')],
+        [Event('input_interval', 'interval')])(
+        display_status(value)
+    )
+    app.callback(
         Output(generate_output_id(value), 'children'),
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
     )
-    app.callback(
-        Output(generate_input_id(value), 'disabled'),
-        events=[Event('input_interval', 'interval')])(
-        display_status(value)
-    )
-
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
 # app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/brPBPO.css"})
