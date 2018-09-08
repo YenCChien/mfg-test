@@ -312,13 +312,20 @@ def generate_output_callback(datasource_1_value):
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
+                while True:
+                    print('----------curr:' ,currLed)
+                    print('----------after:' ,Led_Check)
+                    if currLed[datasource_1_value]['PASS'] != Led_Check[datasource_1_value]['PASS']:break
+                    if currLed[datasource_1_value]['FAIL'] != Led_Check[datasource_1_value]['FAIL']:break
+                    time.sleep(1)
                 if currLed[datasource_1_value]['PASS'] > Led_Check[datasource_1_value]['PASS']:
                     ledTest = 'PASS'
+                    Led_Check[datasource_1_value]['PASS'] += 1
                     print('-------------PASS')
                 else:
                     ledTest = 'FAIL'
+                    Led_Check[datasource_1_value]['FAIL'] += 1
                     print('-------------FAIL')
-                Led_Check[datasource_1_value] = currLed[datasource_1_value]
                 Id_Status[datasource_1_value] = False
                 log += 'Error : Query IP FAIL !!'
                 a.write(log)
