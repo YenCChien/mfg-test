@@ -303,8 +303,9 @@ def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
+            StationID = request.remote_addr+'-{}'.format(datasource_1_value)
             a = open(input_value,'w')
-            log = 'Remote IP : '+request.remote_addr+'-{}'.format(datasource_1_value)+'\n'
+            log = 'Remote IP : '+StationID+'\n'
             log += 'MAC Address :' +input_value+'\n'
             global Id_Status, Led_Check
             Id_Status[datasource_1_value] = True
@@ -312,20 +313,6 @@ def generate_output_callback(datasource_1_value):
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
-                while True:
-                    print('----------curr:' ,currLed)
-                    print('----------after:' ,Led_Check)
-                    if currLed[datasource_1_value]['PASS'] != Led_Check[datasource_1_value]['PASS']:break
-                    if currLed[datasource_1_value]['FAIL'] != Led_Check[datasource_1_value]['FAIL']:break
-                    time.sleep(1)
-                if currLed[datasource_1_value]['PASS'] > Led_Check[datasource_1_value]['PASS']:
-                    ledTest = 'PASS'
-                    Led_Check[datasource_1_value]['PASS'] += 1
-                    print('-------------PASS')
-                else:
-                    ledTest = 'FAIL'
-                    Led_Check[datasource_1_value]['FAIL'] += 1
-                    print('-------------FAIL')
                 Id_Status[datasource_1_value] = False
                 log += 'Error : Query IP FAIL !!'
                 a.write(log)
@@ -349,11 +336,26 @@ def generate_output_callback(datasource_1_value):
             # testOrder = ['docsIfDownChannelId','docsIfDownChannelIdx']+queritems
             testOrder = ['docsIf3SignalQualityExtRxMER','docsIf3CmtsCmUsStatusSignalNoise','docsIf3CmStatusUsTxPower','docsIfDownChannelPower']
             responseHtml, testResult, DsPwrJson, DsRxMerJson, UsPwrJson, UsSnrJson = generate_result(dsInfo, usInfo, testOrder)
-            DsPwrJson.update({"_id":input_value,"TestTime":dsTestTime})
-            DsRxMerJson.update({"_id":input_value,"TestTime":dsTestTime})
-            UsPwrJson.update({"_id":input_value,"TestTime":usTestTime})
-            UsSnrJson.update({"_id":input_value,"TestTime":usTestTime})
+            DsPwrJson.update({"_id":input_value,"TestTime":dsTestTime,"Station-id":StationID})
+            DsRxMerJson.update({"_id":input_value,"TestTime":dsTestTime,"Station-id":StationID})
+            UsPwrJson.update({"_id":input_value,"TestTime":usTestTime,"Station-id":StationID})
+            UsSnrJson.update({"_id":input_value,"TestTime":usTestTime,"Station-id":StationID})
             allTestTime = time.time()-testTimeStart
+
+            while True:
+                print('----------curr:' ,currLed)
+                print('----------after:' ,Led_Check)
+                if currLed[datasource_1_value]['PASS'] != Led_Check[datasource_1_value]['PASS']:break
+                if currLed[datasource_1_value]['FAIL'] != Led_Check[datasource_1_value]['FAIL']:break
+                time.sleep(1)
+            if currLed[datasource_1_value]['PASS'] > Led_Check[datasource_1_value]['PASS']:
+                ledTest = 'PASS'
+                Led_Check[datasource_1_value]['PASS'] += 1
+                print('-------------PASS')
+            else:
+                ledTest = 'FAIL'
+                Led_Check[datasource_1_value]['FAIL'] += 1
+                print('-------------FAIL')
 
             log += modemsys+'\n'
             log += 'Start Time : '+str(datetime.datetime.fromtimestamp(testTimeStart))+'\n'
