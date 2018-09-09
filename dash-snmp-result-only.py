@@ -38,7 +38,7 @@ SaveDB = False
 #### defined stattion id & led status
 stationList = ['192.168.0.10','192.168.0.11']
 
-## Id_Status is applicated to disable input-entry since start test(2d-dict[station][id])
+## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
 Id_Status = defaultdict(dict)
 for s in stationList:
     for n in range(1,3):
