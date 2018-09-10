@@ -74,14 +74,18 @@ def getKeysByValues(value):
         if mibs[i][0] == value:
             return i
 
-def generate_result(dsdata, usdata, order):
+def generate_result(dsdata, usdata, order, init_result):
     if dsdata.empty or usdata.empty:
+        if init_result == 'FAIL':
+            initStyle = {'color': '#f41111'}
+        else:
+            initStyle={'color': '#000000'}
         return html.Div([
         html.Table(
         # Header
         [html.Tr([html.Th(col) for col in order])] 
         ),
-        html.H3('N/A',style={'color': '#000000'}),
+        html.H3(init_result,style=initStyle),
         html.Br()
         ])
     # create dic of test status for all test items
@@ -260,11 +264,11 @@ def getDsId(wan):
         dic[value] = index
     return dic
 
-def initView(msg,items,color):
+def initView(msg,items,color,status='N/A'):
     init = html.Div(style={'color': color}, children=(msg))
     DsInfo = pd.DataFrame()
     UsInfo = pd.DataFrame()
-    return init, generate_result(DsInfo, UsInfo, items)
+    return init, generate_result(DsInfo, UsInfo, items, status)
 ############################################### web view ################################################
 
 app = dash.Dash()
@@ -316,12 +320,38 @@ def generate_output_callback(datasource_1_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
             StationID = request.remote_addr+'-{}'.format(datasource_1_value)
-            a = open(input_value,'w')
+
+            ## Create Log
+            if not os.path.exists(os.getcwd()+'/log/'+str(datetime.date.today())):
+                os.makedirs(os.getcwd()+'/log/'+str(datetime.date.today()))
+
+            a = open(os.getcwd()+'/log/'+str(datetime.date.today())+'/'+input_value+'_'+datetime.datetime.now().strftime("%H:%M:%S"),'w')
             log = 'Remote IP : '+StationID+'\n'
             log += 'MAC Address :' +input_value+'\n'
             global Id_Status, Led_Check
             Id_Status[request.remote_addr][datasource_1_value] = True
             testTimeStart = time.time()
+
+            while True:
+                print('----------curr:' ,currLed)
+                print('----------after:' ,Led_Check)
+                if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
+                if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
+                time.sleep(1)
+            if currLed[request.remote_addr][datasource_1_value]['PASS'] > Led_Check[request.remote_addr][datasource_1_value]['PASS']:
+                ledTest = 'PASS'
+                Led_Check[request.remote_addr][datasource_1_value]['PASS'] += 1
+                print('-------------PASS')
+            else:
+                ledTest = 'FAIL'
+                Led_Check[request.remote_addr][datasource_1_value]['FAIL'] += 1
+                print('-------------FAIL')
+                Id_Status[request.remote_addr][datasource_1_value] = False
+                log += 'Error : CHECK LED FAIL FAIL !!'
+                a.write(log)
+                a.close() 
+                return initView('ID-{0} CHECK LED FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
+
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
@@ -329,7 +359,7 @@ def generate_output_callback(datasource_1_value):
                 log += 'Error : Query IP FAIL !!'
                 a.write(log)
                 a.close() 
-                return initView('ID-{0} Query IP FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404')
+                return initView('ID-{0} Query IP FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
             modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
             mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
             if mac != str(input_value):
@@ -353,21 +383,6 @@ def generate_output_callback(datasource_1_value):
             UsPwrJson.update({"_id":input_value,"TestTime":usTestTime,"Station-id":StationID})
             UsSnrJson.update({"_id":input_value,"TestTime":usTestTime,"Station-id":StationID})
             allTestTime = time.time()-testTimeStart
-
-            while True:
-                print('----------curr:' ,currLed)
-                print('----------after:' ,Led_Check)
-                if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
-                if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
-                time.sleep(1)
-            if currLed[request.remote_addr][datasource_1_value]['PASS'] > Led_Check[request.remote_addr][datasource_1_value]['PASS']:
-                ledTest = 'PASS'
-                Led_Check[request.remote_addr][datasource_1_value]['PASS'] += 1
-                print('-------------PASS')
-            else:
-                ledTest = 'FAIL'
-                Led_Check[request.remote_addr][datasource_1_value]['FAIL'] += 1
-                print('-------------FAIL')
 
             log += modemsys+'\n'
             log += 'Start Time : '+str(datetime.datetime.fromtimestamp(testTimeStart))+'\n'
