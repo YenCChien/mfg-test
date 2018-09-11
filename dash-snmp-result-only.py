@@ -15,7 +15,7 @@ from collections import defaultdict
 
 ### Basic Setting ###
 CMTS = '192.168.45.254'
-MongoServer = '192.168.45.42'
+MongoServer = '192.168.45.68'
 mibs = {
         'DsQAM':    ['docsIfDownChannelPower'],
         'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
@@ -28,15 +28,15 @@ RxMER = 38
 UsSNR = 40
 DsPower = {
             '192.168.0.11':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5},
-            '192.168.0.10':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
+            '192.168.0.15':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
             }
 UsPower = {
             '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
-            '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
+            '192.168.0.15':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
 SaveDB = False
 #### defined stattion id & led status
-stationList = ['192.168.0.10','192.168.0.11']
+stationList = ['192.168.0.15','192.168.0.11']
 
 ## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
 Id_Status = defaultdict(dict)
@@ -74,7 +74,7 @@ def getKeysByValues(value):
         if mibs[i][0] == value:
             return i
 
-def generate_result(dsdata, usdata, order, init_result):
+def generate_result(dsdata, usdata, order, init_result='N/A'):
     if dsdata.empty or usdata.empty:
         if init_result == 'FAIL':
             initStyle = {'color': '#f41111'}
@@ -311,6 +311,7 @@ def display_status(id_):
 def ckeckLed(id_):
     def output_callback(input_value,state):
         if len(input_value) == 12:
+            time.sleep(1)
             return True
         return False
     return output_callback
@@ -441,7 +442,7 @@ for value in range(1,3):
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
     )
-app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
+# app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})python3
 # Loading screen CSS
 # app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/brPBPO.css"})
 

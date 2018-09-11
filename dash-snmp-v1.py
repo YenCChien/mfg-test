@@ -13,9 +13,11 @@ from mongo import *
 import bz2
 from collections import defaultdict
 
+
+'''
 ### Basic Setting ###
 CMTS = '192.168.5.254'
-MongoServer = '192.168.5.20'
+# MongoServer = '192.168.5.20'
 mibs = {
         'DsQAM':    ['docsIfDownChannelPower'],
         'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
@@ -56,6 +58,52 @@ for s in stationList:
             currLed[s][n][r]=0
 
 #####################
+'''
+
+### Basic Setting ###
+CMTS = '192.168.45.254'
+MongoServer = '192.168.45.68'
+mibs = {
+        'DsQAM':    ['docsIfDownChannelPower'],
+        'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
+        # 'OFDM':   ['docsIf31CmDsOfdmChannelPowerRxPower','docsPnmCmDsOfdmRxMerMean'],
+        'UsQAM':    ['docsIf3CmStatusUsTxPower'],
+        'UsSNR':    ['docsIf3CmtsCmUsStatusSignalNoise'],
+        # 'OFDMA':  ['docsIf31CmtsCmUsOfdmaChannelMeanRxMer','docsIf31CmUsOfdmaChanTxPower']
+        }
+RxMER = 38
+UsSNR = 40
+DsPower = {
+            '192.168.0.11':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5},
+            '192.168.0.15':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
+            }
+UsPower = {
+            '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
+            '192.168.0.15':{35.2:48.5,37:49,38.8:48,40.6:47}
+            }
+SaveDB = False
+#### defined stattion id & led status
+stationList = ['192.168.0.15','192.168.0.11']
+
+## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
+Id_Status = defaultdict(dict)
+for s in stationList:
+    for n in range(1,9):
+        Id_Status[s][n]=False
+
+## Led_Check is showed status of Led before start test(3d-dict[station][id][status])
+Led_Check = defaultdict(lambda: defaultdict(dict))
+
+## currLed is keeped to update from interval(3d-dict[station][id][status]) which compare with Led_Check's status
+currLed = defaultdict(lambda: defaultdict(dict))
+for s in stationList:
+    for n in range(1,9):
+        for r in ['PASS','FAIL']:
+            Led_Check[s][n][r]=0
+            currLed[s][n][r]=0
+
+#####################
+
 
 def text_style(result):
     if result == 'PASS':
@@ -294,7 +342,7 @@ app.layout = html.Div([
     html.Div(id='output-data-7'),
     dcc.Input(id='id-8', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-8'),
-    dcc.Interval(id='input_interval', interval=1000),
+    dcc.Interval(id='input_interval', interval=2000),
     dcc.ConfirmDialog(id='led-alert-1',message='Check LED Light On ro Not?  ID-1',),
     dcc.ConfirmDialog(id='led-alert-2',message='Check LED Light On ro Not?  ID-2',),
     dcc.ConfirmDialog(id='led-alert-3',message='Check LED Light On ro Not?  ID-3',),
@@ -326,7 +374,7 @@ def display_status(id_):
 def ckeckLed(id_):
     def output_callback(input_value,state):
         if len(input_value) == 12:
-            time.sleep(1)
+            time.sleep(0.1)
             return True
         return False
     return output_callback
@@ -336,7 +384,6 @@ def generate_output_callback(datasource_1_value):
         if len(input_value) == 12:
             # print('--------------',request.remote_addr)
             StationID = request.remote_addr+'-{}'.format(datasource_1_value)
-
             ## Create Log
             if not os.path.exists(os.getcwd()+'\\log\\'+str(datetime.date.today())):
                 os.makedirs(os.getcwd()+'\\log\\'+str(datetime.date.today()))
@@ -349,8 +396,9 @@ def generate_output_callback(datasource_1_value):
             testTimeStart = time.time()
 
             while True:
-                print('----------curr:' ,currLed)
-                print('----------after:' ,Led_Check)
+                # print('----------curr:' ,currLed)
+                # print('----------after:' ,Led_Check)
+                print('--------------',input_value)
                 if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
                 if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
                 time.sleep(1)
@@ -367,19 +415,26 @@ def generate_output_callback(datasource_1_value):
                 a.write(log)
                 a.close() 
                 return initView('ID-{0} CHECK LED FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
-
             try:
                 wan = SnmpGetWanIp(CMTS,input_value)
             except:
                 Id_Status[request.remote_addr][datasource_1_value] = False
-                log += 'Error : Query IP FAIL !!'
+                log += 'Error : Query IP from CMTS FAIL !!'
                 a.write(log)
                 a.close() 
                 return initView('ID-{0} Query IP FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
-            modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-            mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
-            if mac != str(input_value):
-                return initView('MAC Error: Input( {0} ) != Snmp( {1} )'.format(input_value,mac), mibs.keys(),'#f70404')
+            queryWanStart = time.time()
+            while True:
+                if time.time()-queryWanStart > 10:
+                    Id_Status[request.remote_addr][datasource_1_value] = False
+                    log += 'Error : Query Cm Wan System & Check IP FAIL!!'
+                    a.write(log)
+                    a.close() 
+                    return initView('ID-{0} Query Cm Wan System & Check IP FAIL!!, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
+                modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
+                mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
+                if mac == str(input_value) and 'No SNMP response' not in modemsys:break
+                time.sleep(2)
             sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
             waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
                 str(datetime.datetime.fromtimestamp(time.time()))))
@@ -426,8 +481,6 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'Log', logJson, MongoServer)
                 saveDB('AFI', 'LED', ledJson, MongoServer)
             Id_Status[request.remote_addr][datasource_1_value] = False
-            if 'No SNMP response' in modemsys:
-                return initView(waninfo+sysinfo,mibs.keys(),'#f70404')
             return waninfo, responseHtml
         else:
             return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
