@@ -379,6 +379,8 @@ def ckeckLed(id_):
         return False
     return output_callback
 
+def 
+
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
@@ -482,6 +484,8 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'LED', ledJson, MongoServer)
             Id_Status[request.remote_addr][datasource_1_value] = False
             return waninfo, responseHtml
+        elif len(input_value) > 12:
+            return initView('Input Mac, ID-{} MAC ERROR'.format(datasource_1_value),mibs.keys(),'#f70404'')
         else:
             return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
     return output_callback
@@ -510,6 +514,11 @@ for value in range(1,9):
         Output(generate_output_id(value), 'children'),
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
+    )
+    app.callback(
+        Output(generate_output_id(value), 'children'),
+        [Input(generate_input_id(value), 'value')])(
+        runningStatus(value)
     )
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
