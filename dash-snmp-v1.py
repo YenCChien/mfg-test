@@ -12,7 +12,7 @@ import pandas as pd
 from mongo import *
 import bz2
 from collections import defaultdict
-
+import threading
 
 '''
 ### Basic Setting ###
@@ -68,27 +68,27 @@ mibs = {
         'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
         # 'OFDM':   ['docsIf31CmDsOfdmChannelPowerRxPower','docsPnmCmDsOfdmRxMerMean'],
         'UsQAM':    ['docsIf3CmStatusUsTxPower'],
-        'UsSNR':    ['docsIf3CmtsCmUsStatusSignalNoise'],
+        # 'UsSNR':    ['docsIf3CmtsCmUsStatusSignalNoise'],
         # 'OFDMA':  ['docsIf31CmtsCmUsOfdmaChannelMeanRxMer','docsIf31CmUsOfdmaChanTxPower']
         }
 RxMER = 38
 UsSNR = 40
 DsPower = {
             '192.168.0.11':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5},
-            '192.168.0.15':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
+            '192.168.0.10':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
             }
 UsPower = {
             '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
-            '192.168.0.15':{35.2:48.5,37:49,38.8:48,40.6:47}
+            '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
 SaveDB = False
 #### defined stattion id & led status
-stationList = ['192.168.0.15','192.168.0.11']
+stationList = ['192.168.0.10','192.168.0.11']
 
 ## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
 Id_Status = defaultdict(dict)
 for s in stationList:
-    for n in range(1,9):
+    for n in range(1,5):
         Id_Status[s][n]=False
 
 ## Led_Check is showed status of Led before start test(3d-dict[station][id][status])
@@ -97,7 +97,7 @@ Led_Check = defaultdict(lambda: defaultdict(dict))
 ## currLed is keeped to update from interval(3d-dict[station][id][status]) which compare with Led_Check's status
 currLed = defaultdict(lambda: defaultdict(dict))
 for s in stationList:
-    for n in range(1,9):
+    for n in range(1,5):
         for r in ['PASS','FAIL']:
             Led_Check[s][n][r]=0
             currLed[s][n][r]=0
@@ -126,6 +126,8 @@ def generate_result(dsdata, usdata, order, init_result='N/A'):
     if dsdata.empty or usdata.empty:
         if init_result == 'FAIL':
             initStyle = {'color': '#f41111'}
+        elif init_result == 'RUNNING':
+            initStyle = {'color': '#c6c90e'}
         else:
             initStyle={'color': '#000000'}
         return html.Div([
@@ -328,36 +330,30 @@ app.layout = html.Div([
     # html.Div([
     dcc.Input(id='id-1', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-1'),
+    dcc.ConfirmDialog(id='led-alert-1',message='Check LED Light On ro Not?  ID-1',),
     dcc.Input(id='id-2', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-2'),
+    dcc.ConfirmDialog(id='led-alert-2',message='Check LED Light On ro Not?  ID-2',),
     dcc.Input(id='id-3', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-3'),
+    dcc.ConfirmDialog(id='led-alert-3',message='Check LED Light On ro Not?  ID-3',),
     dcc.Input(id='id-4', placeholder='Enter a Mac...', value='', type='text'),
     html.Div(id='output-data-4'),
-    dcc.Input(id='id-5', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-5'),
-    dcc.Input(id='id-6', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-6'),
-    dcc.Input(id='id-7', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-7'),
-    dcc.Input(id='id-8', placeholder='Enter a Mac...', value='', type='text'),
-    html.Div(id='output-data-8'),
-    dcc.Interval(id='input_interval', interval=2000),
-    dcc.ConfirmDialog(id='led-alert-1',message='Check LED Light On ro Not?  ID-1',),
-    dcc.ConfirmDialog(id='led-alert-2',message='Check LED Light On ro Not?  ID-2',),
-    dcc.ConfirmDialog(id='led-alert-3',message='Check LED Light On ro Not?  ID-3',),
     dcc.ConfirmDialog(id='led-alert-4',message='Check LED Light On ro Not?  ID-4',),
-    dcc.ConfirmDialog(id='led-alert-5',message='Check LED Light On ro Not?  ID-5',),
-    dcc.ConfirmDialog(id='led-alert-6',message='Check LED Light On ro Not?  ID-6',),
-    dcc.ConfirmDialog(id='led-alert-7',message='Check LED Light On ro Not?  ID-7',),
-    dcc.ConfirmDialog(id='led-alert-8',message='Check LED Light On ro Not?  ID-8',),
+    # dcc.Input(id='id-5', placeholder='Enter a Mac...', value='', type='text'),
+    # html.Div(id='output-data-5'),
+    # dcc.ConfirmDialog(id='led-alert-5',message='Check LED Light On ro Not?  ID-5',),
+    # dcc.Input(id='id-6', placeholder='Enter a Mac...', value='', type='text'),
+    # html.Div(id='output-data-6'),
+    # dcc.ConfirmDialog(id='led-alert-6',message='Check LED Light On ro Not?  ID-6',),
+    # dcc.Input(id='id-7', placeholder='Enter a Mac...', value='', type='text'),
+    # html.Div(id='output-data-7'),
+    # dcc.ConfirmDialog(id='led-alert-7',message='Check LED Light On ro Not?  ID-7',),
+    # dcc.Input(id='id-8', placeholder='Enter a Mac...', value='', type='text'),
+    # html.Div(id='output-data-8'),
+    # dcc.ConfirmDialog(id='led-alert-8',message='Check LED Light On ro Not?  ID-8',),
+    dcc.Interval(id='input_interval', interval=1000),
 ],style={'columnCount': 2})
-
-def generate_output_id(value):
-    return 'output-data-{}'.format(value)
-
-def generate_input_id(value):
-    return 'id-{}'.format(value)
 
 def display_status(id_):
     def output_callback(submit,cancel):
@@ -398,18 +394,20 @@ def generate_output_callback(datasource_1_value):
             while True:
                 # print('----------curr:' ,currLed)
                 # print('----------after:' ,Led_Check)
-                print('--------------',input_value)
                 if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
                 if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
                 time.sleep(1)
+                if time.time()-testTimeStart > 5:
+                    Id_Status[request.remote_addr][datasource_1_value] = False
+                    return initView('ID-{0} CHECK LED TIMEOUT, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
             if currLed[request.remote_addr][datasource_1_value]['PASS'] > Led_Check[request.remote_addr][datasource_1_value]['PASS']:
                 ledTest = 'PASS'
                 Led_Check[request.remote_addr][datasource_1_value]['PASS'] += 1
-                print('-------------PASS')
+                # print('-------------PASS')
             else:
                 ledTest = 'FAIL'
                 Led_Check[request.remote_addr][datasource_1_value]['FAIL'] += 1
-                print('-------------FAIL')
+                # print('-------------FAIL')
                 Id_Status[request.remote_addr][datasource_1_value] = False
                 log += 'Error : CHECK LED FAIL FAIL !!'
                 a.write(log)
@@ -484,6 +482,8 @@ def generate_output_callback(datasource_1_value):
             return waninfo, responseHtml
         elif len(input_value) > 12:
             return initView('Input Mac, ID-{} MAC ERROR'.format(datasource_1_value),mibs.keys(),'#f70404')
+        elif 2 <= len(input_value) <= 11:
+            return initView('Input Mac, ID-{} Waiting for Test ...'.format(datasource_1_value),mibs.keys(),'#5031c6','RUNNING')
         else:
             return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
     return output_callback
@@ -493,7 +493,16 @@ app.config.supress_callback_exceptions = True
 def generate_led_id(value):
     return 'led-alert-{}'.format(value)
 
-for value in range(1,9):
+def generate_output_id(value):
+    return 'output-data-{}'.format(value)
+
+def generate_input_id(value):
+    return 'id-{}'.format(value)
+
+# from multiprocessing.pool import ThreadPool
+# pool = ThreadPool(processes=8)
+
+for value in range(1,5):
     app.callback(
         Output(generate_led_id(value), 'displayed'),
         [Input(generate_input_id(value), 'value')],
@@ -513,6 +522,8 @@ for value in range(1,9):
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
     )
+
+
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
 # app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/brPBPO.css"})
