@@ -483,7 +483,7 @@ def generate_output_callback(datasource_1_value):
             Id_Status[request.remote_addr][datasource_1_value] = False
             return waninfo, responseHtml
         elif len(input_value) > 12:
-            return initView('Input Mac, ID-{} MAC ERROR'.format(datasource_1_value),mibs.keys(),'#f70404'')
+            return initView('Input Mac, ID-{} MAC ERROR'.format(datasource_1_value),mibs.keys(),'#f70404')
         else:
             return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
     return output_callback
