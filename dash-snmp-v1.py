@@ -87,21 +87,24 @@ stationList = ['192.168.0.10','192.168.0.11']
 
 ## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
 Id_Status = defaultdict(dict)
+reState = defaultdict(dict)
+inputStat = defaultdict(dict)
 for s in stationList:
     for n in range(1,5):
         Id_Status[s][n]=False
-
+        reState[s][n]=None
 ## Led_Check is showed status of Led before start test(3d-dict[station][id][status])
 Led_Check = defaultdict(lambda: defaultdict(dict))
 
 ## currLed is keeped to update from interval(3d-dict[station][id][status]) which compare with Led_Check's status
 currLed = defaultdict(lambda: defaultdict(dict))
+
 for s in stationList:
     for n in range(1,5):
         for r in ['PASS','FAIL']:
             Led_Check[s][n][r]=0
             currLed[s][n][r]=0
-
+            
 #####################
 
 
@@ -135,7 +138,7 @@ def generate_result(dsdata, usdata, order, init_result='N/A'):
         # Header
         [html.Tr([html.Th(col) for col in order])] 
         ),
-        html.H3(init_result,style=initStyle),
+        html.H3(init_result,style=initStyle,id='r1'),
         html.Br()
         ])
     # create dic of test status for all test items
@@ -375,9 +378,12 @@ def ckeckLed(id_):
         return False
     return output_callback
 
+
+
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
+            print('--------------------',datasource_1_value,'----------',input_value)
             # print('--------------',request.remote_addr)
             StationID = request.remote_addr+'-{}'.format(datasource_1_value)
             ## Create Log
@@ -397,8 +403,9 @@ def generate_output_callback(datasource_1_value):
                 if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
                 if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
                 time.sleep(1)
-                if time.time()-testTimeStart > 5:
+                if time.time()-testTimeStart > 30:
                     Id_Status[request.remote_addr][datasource_1_value] = False
+                    Led_Check[request.remote_addr][datasource_1_value] = currLed[request.remote_addr][datasource_1_value]
                     return initView('ID-{0} CHECK LED TIMEOUT, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
             if currLed[request.remote_addr][datasource_1_value]['PASS'] > Led_Check[request.remote_addr][datasource_1_value]['PASS']:
                 ledTest = 'PASS'
@@ -479,13 +486,18 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'Log', logJson, MongoServer)
                 saveDB('AFI', 'LED', ledJson, MongoServer)
             Id_Status[request.remote_addr][datasource_1_value] = False
+            global reState
+            reState[request.remote_addr][datasource_1_value] = waninfo, responseHtml
             return waninfo, responseHtml
         elif len(input_value) > 12:
             return initView('Input Mac, ID-{} MAC ERROR'.format(datasource_1_value),mibs.keys(),'#f70404')
-        elif 2 <= len(input_value) <= 11:
+        elif 1 <= len(input_value) <= 11:
             return initView('Input Mac, ID-{} Waiting for Test ...'.format(datasource_1_value),mibs.keys(),'#5031c6','RUNNING')
         else:
-            return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
+            if currLed[request.remote_addr][datasource_1_value]['PASS'] != 0 or currLed[request.remote_addr][datasource_1_value]['FAIL'] != 0:
+                return reState[request.remote_addr][datasource_1_value]
+            else:
+                return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
     return output_callback
 
 app.config.supress_callback_exceptions = True
@@ -498,6 +510,14 @@ def generate_output_id(value):
 
 def generate_input_id(value):
     return 'id-{}'.format(value)
+
+def clearInput(id_):
+    def output_callback(state):
+        print('--------',state)
+        print('--------',Id_Status[request.remote_addr][id_])
+        while state:
+            return ''
+    return output_callback
 
 # from multiprocessing.pool import ThreadPool
 # pool = ThreadPool(processes=8)
@@ -522,7 +542,13 @@ for value in range(1,5):
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
     )
-
+    app.callback(
+        Output(generate_input_id(value), 'value'),
+        [],
+        [State(generate_input_id(value), 'disabled')],
+        [Event('input_interval', 'interval')])(
+        clearInput(value)
+    )
 
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
