@@ -379,8 +379,6 @@ def ckeckLed(id_):
         return False
     return output_callback
 
-def 
-
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
@@ -514,11 +512,6 @@ for value in range(1,9):
         Output(generate_output_id(value), 'children'),
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
-    )
-    app.callback(
-        Output(generate_output_id(value), 'children'),
-        [Input(generate_input_id(value), 'value')])(
-        runningStatus(value)
     )
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
