@@ -1,3 +1,4 @@
+
 import datetime
 import time
 import dash
@@ -12,53 +13,6 @@ import pandas as pd
 from mongo import *
 import bz2
 from collections import defaultdict
-import threading
-
-'''
-### Basic Setting ###
-CMTS = '192.168.5.254'
-# MongoServer = '192.168.5.20'
-mibs = {
-        'DsQAM':    ['docsIfDownChannelPower'],
-        'RxMER' :   ['docsIf3SignalQualityExtRxMER'],
-        # 'OFDM':   ['docsIf31CmDsOfdmChannelPowerRxPower','docsPnmCmDsOfdmRxMerMean'],
-        'UsQAM':    ['docsIf3CmStatusUsTxPower'],
-        # 'UsSNR':    ['docsIf3CmtsCmUsStatusSignalNoise'],
-        # 'OFDMA':  ['docsIf31CmtsCmUsOfdmaChannelMeanRxMer','docsIf31CmUsOfdmaChanTxPower']
-        }
-RxMER = 38
-UsSNR = 40
-DsPower = {
-            '192.168.10.70':{333:0,339:0.5,345:0.9,351:0.5,357:0.2,363:-0.5,369:-0.4,375:-0.5,381:0.1,387:0,393:0,399:0,405:0,411:0,417:0,423:0},
-            '192.168.10.10':{333:0,339:0.5,345:0.9,351:0.5,357:0.2,363:-0.5,369:-0.4,375:-0.5,381:0.1,387:0,393:0,399:0,405:0,411:0,417:0,423:0}
-            }
-UsPower = {
-            '192.168.10.70':{10:48.5,16.4:49,22.8:48,29.2:47},
-            '192.168.10.10':{10:48.5,16.4:49,22.8:48,29.2:47}
-            }
-SaveDB = True
-#### defined stattion id & led status
-stationList = ['192.168.10.10','192.168.10.70']
-
-## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
-Id_Status = defaultdict(dict)
-for s in stationList:
-    for n in range(1,9):
-        Id_Status[s][n]=False
-
-## Led_Check is showed status of Led before start test(3d-dict[station][id][status])
-Led_Check = defaultdict(lambda: defaultdict(dict))
-
-## currLed is keeped to update from interval(3d-dict[station][id][status]) which compare with Led_Check's status
-currLed = defaultdict(lambda: defaultdict(dict))
-for s in stationList:
-    for n in range(1,9):
-        for r in ['PASS','FAIL']:
-            Led_Check[s][n][r]=0
-            currLed[s][n][r]=0
-
-#####################
-'''
 
 ### Basic Setting ###
 CMTS = '192.168.45.254'
@@ -74,39 +28,39 @@ mibs = {
 RxMER = 38
 UsSNR = 40
 DsPower = {
-            '192.168.0.11':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5},
-            '192.168.0.10':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5}
+            '192.168.10.11':{333:0,339:0,345:-0.3,351:-0.2,357:-0.3,363:-0.2,369:-0.2,375:0.1,381:0.2,387:0.4,393:0.4,399:0.4,405:0.3,411:0.4,417:0.1,423:0.1},
+            '192.168.10.10':{333:0,339:0,345:-0.3,351:-0.2,357:-0.3,363:-0.2,369:-0.2,375:0.1,381:0.2,387:0.4,393:0.4,399:0.4,405:0.3,411:0.4,417:0.1,423:0.1},
+            '192.168.10.88':{333:0,339:0,345:-0.3,351:-0.2,357:-0.3,363:-0.2,369:-0.2,375:0.1,381:0.2,387:0.4,393:0.4,399:0.4,405:0.3,411:0.4,417:0.1,423:0.1},
+            '127.0.0.1':{603:0,609:0.5,615:0.9,621:0.5,627:0.2,633:-0.5,639:-0.4,645:-0.5},
             }
 UsPower = {
-            '192.168.0.11':{35.2:48.5,37:49,38.8:48,40.6:47},
-            '192.168.0.10':{35.2:48.5,37:49,38.8:48,40.6:47}
+            '192.168.10.11':{10:41.75,16.4:42,22.8:41.5,29.2:41.75},
+            '192.168.10.10':{10:41.75,16.4:42,22.8:41.5,29.2:41.75},
+            '192.168.10.88':{10:41.75,16.4:42,22.8:41.5,29.2:41.75},
+            '127.0.0.1':{35.2:48.5,37:49,38.8:48,40.6:47}
             }
-SaveDB = False
+SaveDB = True
 #### defined stattion id & led status
-stationList = ['192.168.0.10','192.168.0.11']
+stationList = ['192.168.10.10','192.168.10.11','192.168.10.88','127.0.0.1']
 
 ## Id_Status is applied to disable input-entry since start test(2d-dict[station][id])
 Id_Status = defaultdict(dict)
-reState = defaultdict(dict)
-inputStat = defaultdict(dict)
 for s in stationList:
     for n in range(1,5):
         Id_Status[s][n]=False
-        reState[s][n]=None
+
 ## Led_Check is showed status of Led before start test(3d-dict[station][id][status])
 Led_Check = defaultdict(lambda: defaultdict(dict))
 
 ## currLed is keeped to update from interval(3d-dict[station][id][status]) which compare with Led_Check's status
 currLed = defaultdict(lambda: defaultdict(dict))
-
 for s in stationList:
     for n in range(1,5):
         for r in ['PASS','FAIL']:
             Led_Check[s][n][r]=0
             currLed[s][n][r]=0
-            
-#####################
 
+#####################
 
 def text_style(result):
     if result == 'PASS':
@@ -138,7 +92,7 @@ def generate_result(dsdata, usdata, order, init_result='N/A'):
         # Header
         [html.Tr([html.Th(col) for col in order])] 
         ),
-        html.H3(init_result,style=initStyle,id='r1'),
+        html.H3(init_result,style=initStyle),
         html.Br()
         ])
     # create dic of test status for all test items
@@ -274,11 +228,13 @@ def query_us_snmp(wan, usdicidx):
                 snmp_value = float(snmp_value)/10.0
                 chPList.append(snmp_value)
     dic.update({'docsIf3CmStatusUsTxPower':chPList})
+    ''' May cause Query traffic
     cmtsIpDic = Snmp.SnmpWalk(CMTS,snmp_oid('docsIfCmtsCmStatusIpAddress'))
     for ip in cmtsIpDic:
         if wan == ip.split(' ')[-1]: 
             cmtsUsIpIdx = ip.split(' ')[0].split('.')[-1]
             break
+    '''
     ''' ## JingHong 3.0 not support docsIf3CmtsCmUsStatusSignalNoise mibs
     cmtsUsSnrIdx,cmtsUsFreqIdx = {},{}
     # create dic, {Channel Index:cmtsUsSnr}
@@ -355,7 +311,7 @@ app.layout = html.Div([
     # dcc.Input(id='id-8', placeholder='Enter a Mac...', value='', type='text'),
     # html.Div(id='output-data-8'),
     # dcc.ConfirmDialog(id='led-alert-8',message='Check LED Light On ro Not?  ID-8',),
-    dcc.Interval(id='input_interval', interval=1000),
+    dcc.Interval(id='input_interval', interval=1500),
 ],style={'columnCount': 2})
 
 def display_status(id_):
@@ -403,7 +359,7 @@ def generate_output_callback(datasource_1_value):
                 if currLed[request.remote_addr][datasource_1_value]['PASS'] != Led_Check[request.remote_addr][datasource_1_value]['PASS']:break
                 if currLed[request.remote_addr][datasource_1_value]['FAIL'] != Led_Check[request.remote_addr][datasource_1_value]['FAIL']:break
                 time.sleep(1)
-                if time.time()-testTimeStart > 30:
+                if time.time()-testTimeStart > 20:
                     Id_Status[request.remote_addr][datasource_1_value] = False
                     Led_Check[request.remote_addr][datasource_1_value] = currLed[request.remote_addr][datasource_1_value]
                     return initView('ID-{0} CHECK LED TIMEOUT, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
@@ -420,26 +376,33 @@ def generate_output_callback(datasource_1_value):
                 a.write(log)
                 a.close() 
                 return initView('ID-{0} CHECK LED FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
-            try:
-                wan = SnmpGetWanIp(CMTS,input_value)
-            except:
-                Id_Status[request.remote_addr][datasource_1_value] = False
-                log += 'Error : Query IP from CMTS FAIL !!'
-                a.write(log)
-                a.close() 
-                return initView('ID-{0} Query IP FAIL, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
+            for x in range(3):
+                try:
+                    print('---------------',value)
+                    wan = SnmpGetWanIp(CMTS,input_value)
+                    break
+                except:
+                    if x == 2:
+                        Id_Status[request.remote_addr][datasource_1_value] = False
+                        log += 'Error : Query IP from CMTS FAIL !!'
+                        a.write(log)
+                        a.close() 
+                        return initView('ID-{0} Query IP FAIL, MAC : {1}, CMTS : {2}'.format(datasource_1_value,input_value,CMTS),mibs.keys(),'#f70404', 'FAIL')
+                    else:
+                        time.sleep(2)
+            
             queryWanStart = time.time()
-            while True:
-                if time.time()-queryWanStart > 10:
-                    Id_Status[request.remote_addr][datasource_1_value] = False
-                    log += 'Error : Query Cm Wan System & Check IP FAIL!!'
-                    a.write(log)
-                    a.close() 
-                    return initView('ID-{0} Query Cm Wan System & Check IP FAIL!!, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
+            for s in range(4):
+                print('---------------------------',wan)
                 modemsys = str(Snmp.SnmpGet(wan,snmp_oid('sysDescr'),'0'))
-                mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
-                if mac == str(input_value) and 'No SNMP response' not in modemsys:break
+                if 'No SNMP response' not in modemsys:break
                 time.sleep(2)
+                if s == 3: 
+                    Id_Status[request.remote_addr][datasource_1_value] = False
+                    return initView('ID-{0} Query Cm Wan System & Check IP FAIL!!, MAC : {1}'.format(datasource_1_value,input_value),mibs.keys(),'#f70404', 'FAIL')
+                
+            mac = str(Snmp.SnmpGet(wan,snmp_oid('ifPhysAddress'),'2'))[2:].upper()
+                
             sysinfo = html.Div(style={'color': '#5031c6'}, children=('system : ' + modemsys))
             waninfo = html.Div(style={'color': '#5031c6'}, children=('Snmp Query(MAC : ' + mac + ', WAN : ' + wan +') '+
                 str(datetime.datetime.fromtimestamp(time.time()))))
@@ -486,21 +449,18 @@ def generate_output_callback(datasource_1_value):
                 saveDB('AFI', 'Log', logJson, MongoServer)
                 saveDB('AFI', 'LED', ledJson, MongoServer)
             Id_Status[request.remote_addr][datasource_1_value] = False
-            global reState
-            reState[request.remote_addr][datasource_1_value] = waninfo, responseHtml
             return waninfo, responseHtml
         elif len(input_value) > 12:
             return initView('Input Mac, ID-{} MAC ERROR'.format(datasource_1_value),mibs.keys(),'#f70404')
-        elif 1 <= len(input_value) <= 11:
+        elif 2 <= len(input_value) <= 11:
             return initView('Input Mac, ID-{} Waiting for Test ...'.format(datasource_1_value),mibs.keys(),'#5031c6','RUNNING')
         else:
-            if currLed[request.remote_addr][datasource_1_value]['PASS'] != 0 or currLed[request.remote_addr][datasource_1_value]['FAIL'] != 0:
-                return reState[request.remote_addr][datasource_1_value]
-            else:
-                return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
+            return initView('Input Mac, ID-{} Start Query Snmp!!'.format(datasource_1_value),mibs.keys(),'#5031c6')
     return output_callback
 
 app.config.supress_callback_exceptions = True
+# app.scripts.config.serve_locally = True
+# app.css.config.serve_locally = True
 
 def generate_led_id(value):
     return 'led-alert-{}'.format(value)
@@ -511,16 +471,8 @@ def generate_output_id(value):
 def generate_input_id(value):
     return 'id-{}'.format(value)
 
-def clearInput(id_):
-    def output_callback(state):
-        print('--------',state)
-        print('--------',Id_Status[request.remote_addr][id_])
-        while state:
-            return ''
-    return output_callback
-
-# from multiprocessing.pool import ThreadPool
-# pool = ThreadPool(processes=8)
+from multiprocessing.pool import ThreadPool
+pool = ThreadPool(processes=8)
 
 for value in range(1,5):
     app.callback(
@@ -541,13 +493,6 @@ for value in range(1,5):
         Output(generate_output_id(value), 'children'),
         [Input(generate_input_id(value), 'value')])(
         generate_output_callback(value)
-    )
-    app.callback(
-        Output(generate_input_id(value), 'value'),
-        [],
-        [State(generate_input_id(value), 'disabled')],
-        [Event('input_interval', 'interval')])(
-        clearInput(value)
     )
 
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
