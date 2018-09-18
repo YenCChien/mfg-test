@@ -138,7 +138,7 @@ def generate_result(dsdata, usdata, order, init_result='N/A'):
     # with pd.option_context('display.max_rows', 20, 'display.max_columns', 10):
     #     print(usdata)
     #     print(dsdata)
-    DsPwrJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+    DsPwrJson = {"Time":datetime.datetime.now(),
                 "ChannelId":list(dsdata['docsIfDownChannelId']),
                 "ChannelIndex":list(dsdata['docsIfDownChannelIdx']),
                 "Frequency":list(dsdata['docsIfDownChannelFrequency']),
@@ -146,14 +146,14 @@ def generate_result(dsdata, usdata, order, init_result='N/A'):
                 "MeasurePwr":[DsPower[request.remote_addr][float(x)/1000000] for x in sorted(dsdata['docsIfDownChannelFrequency'])],
                 "ChResult":dsPowerResult,
                 "Result":retult_dic['docsIfDownChannelPower']}
-    DsRxMerJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+    DsRxMerJson = {"Time":datetime.datetime.now(),
                 "ChannelId":list(dsdata['docsIfDownChannelId']),
                 "Frequency":list(dsdata['docsIfDownChannelFrequency']),
                 "RxMer":list(dsdata['docsIf3SignalQualityExtRxMER']),
                 "Criteria":RxMER,
                 "ChResult":dsRxMerResult,
                 "Result":retult_dic['docsIf3SignalQualityExtRxMER']}
-    UsPwrJson = {"Time":datetime.datetime.fromtimestamp(time.time()),
+    UsPwrJson = {"Time":datetime.datetime.now(),
                 "ChannelId":list(usdata['docsIfUpChannelId']),
                 "ChannelIndex":list(usdata['docsIfUpChannelIdx']),
                 "Frequency":list(usdata['docsIfUpChannelFrequency']),
@@ -334,8 +334,6 @@ def ckeckLed(id_):
         return False
     return output_callback
 
-
-
 def generate_output_callback(datasource_1_value):
     def output_callback(input_value):
         if len(input_value) == 12:
@@ -459,8 +457,8 @@ def generate_output_callback(datasource_1_value):
     return output_callback
 
 app.config.supress_callback_exceptions = True
-# app.scripts.config.serve_locally = True
-# app.css.config.serve_locally = True
+app.scripts.config.serve_locally = True
+app.css.config.serve_locally = True
 
 def generate_led_id(value):
     return 'led-alert-{}'.format(value)
@@ -471,8 +469,8 @@ def generate_output_id(value):
 def generate_input_id(value):
     return 'id-{}'.format(value)
 
-from multiprocessing.pool import ThreadPool
-pool = ThreadPool(processes=8)
+# from multiprocessing.pool import ThreadPool
+# pool = ThreadPool(processes=8)
 
 for value in range(1,5):
     app.callback(
@@ -495,7 +493,7 @@ for value in range(1,5):
         generate_output_callback(value)
     )
 
-app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
+# app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 # Loading screen CSS
 # app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/brPBPO.css"})
 
